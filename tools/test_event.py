@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import sys, os, struct, datetime
 import serial, slip
@@ -12,7 +12,10 @@ EVENT_MSG = 'TestEvent'
 FORMAT_ID = '<B'
 FORMAT_EVENT = 'B'
 
-import IPython
+try:
+    import IPython
+except ImportError:
+    IPython = None
 
 def get_msg_id(msg_name):
     msg_id = MsgID.index(msg_name)
@@ -52,9 +55,9 @@ def show_all_from(dev, first_alert):
     for event_name in EventID:
         event_id = EventID.index(event_name) 
         if (event_id >= first_id and event_id >= alert_id):
-            raw_input('Press enter to continue to {}: '.format(event_name))
+            input('Press enter to continue to {}: '.format(event_name))
             send_event(dev, event_name)
-            raw_input('Press enter to dismiss {}: '.format(event_name))
+            input('Press enter to dismiss {}: '.format(event_name))
             send_event(dev, 'AlertRecovery')
 
 def mainloop(serialpath):
@@ -64,24 +67,25 @@ def mainloop(serialpath):
     
     s = pack_msg(EVENT_MSG, 'AltitudeCalRequired')
 
-    print "[mainloop]"
-    IPython.embed()
+    print("[mainloop]")
+    if IPython:
+        IPython.embed()
     # slipdev.write("".join([str(get_msg_id("SetShotInfo")), "COORDINATED TURNS", '\0']))
     # slipdev.write("".join([chr(0x11), "COORDINATED TURNS", '\0']))
-    slipdev.write("".join([artoo.MSGID_SOLO_APP_CONNECTION, chr(1), '\0']))
-    print "\[mainloop]"
+    slipdev.write([artoo.MSGID_SOLO_APP_CONNECTION, 1, 0])
+    print("[/mainloop]")
 
     # usage
     send_event(slipdev, 'SoloConnectionPoor')
 
-    print "[sweep-cfg] Serial write returned: ", slipdev.write(s)
+    print("[test_event] Serial write returned: ", slipdev.write(s))
 
 #
 # main
 #
 
 if len(sys.argv) < 2:
-    print "usage: test_event.py /dev/ttyMyDev"
+    print("usage: test_event.py /dev/ttyMyDev")
     sys.exit(1)
 
 mainloop(sys.argv[1])

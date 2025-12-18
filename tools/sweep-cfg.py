@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import sys, os, struct, datetime
 import serial, slip
@@ -21,14 +21,14 @@ def mainloop(serialpath):
 
     s = struct.pack("".join([FORMAT_ID,FORMAT_SWEEP_TIME]), config_sweep_id, MIN_SWEEP_DEFAULT, MAX_SWEEP_DEFAULT)
 
-    print "[sweep-cfg] Serial write returned: ", slipdev.write(s)
+    print("[sweep-cfg] Serial write returned: ", slipdev.write(s))
 
 #
 # main
 #
 
 if len(sys.argv) < 2:
-    print "usage: sweep-cfg.py /dev/ttyMyDev"
+    print("usage: sweep-cfg.py /dev/ttyMyDev")
     sys.exit(1)
 
 mainloop(sys.argv[1])
