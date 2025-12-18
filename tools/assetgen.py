@@ -1,12 +1,13 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # convert assets to binary formats that
 # can be understood by firmware
 #
 
-import sys, datetime, os, ConfigParser
+import sys, datetime, os
+import configparser
 import itertools
-from cStringIO import StringIO
+from io import StringIO
 from PIL import Image, ImageFont, ImageDraw
 
 DISPLAY_WIDTH  = 320
@@ -122,7 +123,10 @@ def rle(imgdata, asset_name, palette):
 
     if opt_show_stats:
         palette_diff = len(palette.lut) - palette_start_size
-        print "%s - %d colors (%d total, %d new), %d bytes" % (asset_name, len(color_set), len(palette.lut), palette_diff, len(rle_bytes))
+        print(
+            "%s - %d colors (%d total, %d new), %d bytes"
+            % (asset_name, len(color_set), len(palette.lut), palette_diff, len(rle_bytes))
+        )
 
     return rle_bytes
 
@@ -175,7 +179,7 @@ def convertFont(cfg_path, fontname, font_opts_str, palettes, cpp, hdr):
         palette = Palette(color_key)
         palettes.append(palette)
 
-    glyphs = map(chr, range(ord(start_ch), ord(end_ch)+1))
+    glyphs = [chr(c) for c in range(ord(start_ch), ord(end_ch) + 1)]
 
     # buffer the array of font glyphs so we don't need to traverse twice
     font_glyphs_str = StringIO()
@@ -259,10 +263,12 @@ def checkPilVersion():
         v = pkg_resources.get_distribution("pillow").version
         maj, min, patch = [int(c) for c in v.split(".")]
         if maj < 2 or (maj == 2 and min < 6):
-            print "err: pillow installation is older than 2.6.x, try `pip install --upgrade pillow` to get the latest"
+            print(
+                "err: pillow installation is older than 2.6.x, try `pip install --upgrade pillow` to get the latest"
+            )
             sys.exit(1)
     except pkg_resources.DistributionNotFound:
-        print "pillow is not installed - check ReadMe.md for installation info"
+        print("pillow is not installed - check ReadMe.md for installation info")
         sys.exit(1)
 
 #
@@ -279,7 +285,7 @@ outdir = os.path.join(os.getcwd(), sys.argv[2])
 
 opt_show_stats = '--show-stats' in sys.argv
 
-config = ConfigParser.ConfigParser()
+config = configparser.ConfigParser()
 config.optionxform = str    # don't lower case all option names
 config.read(cfgfile)
 
@@ -314,8 +320,7 @@ with open(os.path.join(outdir, "resources-gen.h"), "w") as hdrout:
 
         for p in palettes:
             if opt_show_stats:
-                print "palette: %s - %d colors" % (p.name, len(p.lut))
+                print("palette: %s - %d colors" % (p.name, len(p.lut)))
             p.write_to(cppout, hdrout)
 
     hdrout.write("\n#endif // _RESOURCES_GEN_H\n")
-

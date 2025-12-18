@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # script to bidirectionally bridge mavlink and the SLIP stream
 # supported on artoo
@@ -19,8 +19,8 @@ SHOW_THROUGHPUT = False
 
 MAVPROXY_DEFAULT_PORT = 14550
 
-ARTOO_DSM_ID        = chr(0x1)
-ARTOO_MAVLINK_ID    = chr(0x4)  # artoo msg type specifying this is a mavlink packet
+ARTOO_DSM_ID = 0x01
+ARTOO_MAVLINK_ID = 0x04  # artoo msg type specifying this is a mavlink packet
 #ARTOO_SHOT_INFO_ID  = chr()
 ARTOO_MAVLINK_SYSID = 0xff      # default sysid pixhawk looks for
 
@@ -50,7 +50,7 @@ FLIGHT_MODES = {
 def artooMavlinkPkt(mav, slip_pkt):
     if slip_pkt[0] == ARTOO_MAVLINK_ID:
         # extract and return the mavlink portion of this packet
-        return "".join(slip_pkt[1:])
+        return slip_pkt[1:]
 
     if slip_pkt[0] == ARTOO_DSM_ID:
         # convert a raw DSM packet into an RC override mavlink packet
@@ -58,12 +58,12 @@ def artooMavlinkPkt(mav, slip_pkt):
         # but if SITL is running within a VM, it's extra work to expose that network connection,
         # so we just send via mavproxy since we already have a connection to it.
 
-        pkt_length = len(slip_pkt[1:])
+        pkt_length = len(slip_pkt) - 1
         if (pkt_length != 16):
             print ("[slip-mavlink] Received packet of length: {}".format(pkt_length))
             return None
 
-        ch1, ch2, ch3, ch4, ch5, ch6, ch7, ch8 = struct.unpack("<HHHHHHHH", "".join(slip_pkt[1:]))
+        ch1, ch2, ch3, ch4, ch5, ch6, ch7, ch8 = struct.unpack("<HHHHHHHH", slip_pkt[1:])
         # on solo, rc input is piped through the spektrum, which rearranges channel values
         # to match the order expected by ardupilot. see dsm_decode() in px4's dsm.c.
         ch1, ch2, ch3 = ch2, ch3, ch1
@@ -72,7 +72,7 @@ def artooMavlinkPkt(mav, slip_pkt):
 
 
 def send_shot_info(slipdev, shot):
-    slipdev.write("".join([artoo.MSGID_SET_SHOT_INFO, shot, '\0']))
+    slipdev.write(bytes([artoo.MSGID_SET_SHOT_INFO]) + shot.encode("utf-8") + b"\0")
 
 
 def fwd_shot_info(mav, slipdev, pkt):
@@ -87,7 +87,7 @@ def fwd_shot_info(mav, slipdev, pkt):
             if m.custom_mode in FLIGHT_MODES:
                 send_shot_info(slipdev, FLIGHT_MODES[m.custom_mode])
     except mavutil.mavlink.MAVError as me:
-        print "MAVError:", me
+        print("MAVError:", me)
 
 
 def send_status_text(slipdev, severity, txt):
@@ -97,7 +97,7 @@ def send_status_text(slipdev, severity, txt):
     '''
     solo_mav = mavutil.mavlink.MAVLink(None, 0x1, 0x1)
     mav_pkt = mavutil.mavlink.MAVLink_statustext_message(severity, txt)
-    slipdev.write("".join([ARTOO_MAVLINK_ID, mav_pkt.pack(solo_mav)]))
+    slipdev.write(bytes([ARTOO_MAVLINK_ID]) + mav_pkt.pack(solo_mav))
 
 
 def handleCommand(slipdev, cmd):
@@ -113,10 +113,10 @@ def handleCommand(slipdev, cmd):
         artoo.Artoo(slipdev).set_telem_units(artoo.UNITS_USE_IMPERIAL)
 
 
-    print "cmd:", cmd
+    print("cmd:", cmd)
 
 def mainloop(ser, addr, port):
-    print "listening on %s:%d, sending to %s" %(addr, port, ser)
+    print("listening on %s:%d, sending to %s" % (addr, port, ser))
 
     serialport = serial.Serial(ser, DEFAULT_BAUD)
     slipdev = slip.SlipDevice(serialport)
@@ -142,7 +142,7 @@ def mainloop(ser, addr, port):
         if sock in readable:
             udp_pkt, peer_addr = sock.recvfrom(1024)
             if udp_pkt:
-                rx_bytes += slipdev.write("".join([ARTOO_MAVLINK_ID, udp_pkt]))
+                rx_bytes += slipdev.write(bytes([ARTOO_MAVLINK_ID]) + udp_pkt)
                 fwd_shot_info(mav, slipdev, udp_pkt)
 
 
@@ -166,7 +166,7 @@ def mainloop(ser, addr, port):
 
 
 if len(sys.argv) < 2:
-    print "usage: slip-mavlink.py /dev/ttyMyDev (addr:port)"
+    print("usage: slip-mavlink.py /dev/ttyMyDev (addr:port)")
     sys.exit(1)
 
 serial_path = sys.argv[1]
@@ -179,7 +179,7 @@ else:
     # this assumes we want to listen to something coming from our own address,
     # ie, a SITL instance running in a VM vai NAT
     myaddr = socket.gethostbyname(socket.gethostname())
-    if myaddr is not '127.0.0.1':
+    if myaddr != '127.0.0.1':
         addr = myaddr
 
 mainloop(serial_path, addr, int(port))

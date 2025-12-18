@@ -5,8 +5,8 @@
 
 import sys, os, struct
 
-ARTOO_STORED_PARAMS_ID      = chr(0xb)
-ARTOO_BUTTON_FUNC_CFG_ID    = chr(0x10)
+ARTOO_STORED_PARAMS_ID = 0x0B
+ARTOO_BUTTON_FUNC_CFG_ID = 0x10
 
 # button IDs
 Power = 0
@@ -36,4 +36,15 @@ ButtonName = ["Power", "Fly", "RTL", "Loiter", "A", "B",
               "Preset1", "Preset2", "CameraClick"]
 
 def pack(descriptor, shot, btn_id, btn_evt, state=Enabled):
-    return struct.pack("<BBbb%ds" % (len(descriptor)+1), btn_id, btn_evt, shot, state, descriptor)
+    if isinstance(descriptor, str):
+        descriptor_bytes = descriptor.encode("utf-8")
+    else:
+        descriptor_bytes = descriptor
+    return struct.pack(
+        "<BBbb%ds" % (len(descriptor_bytes) + 1),
+        btn_id,
+        btn_evt,
+        shot,
+        state,
+        descriptor_bytes,
+    )

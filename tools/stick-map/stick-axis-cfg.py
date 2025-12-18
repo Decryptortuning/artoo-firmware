@@ -1,22 +1,22 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # valid fields for each axis: stick_id, direction, expo (optional, defaults to 2)
 #
 
-import sys, os, struct, ConfigParser
+import sys, os, struct
+import configparser
 import serial, slip
 
 ARTOO_BAUD = 115200
 DEFAULT_EXPO = 2
 
-ARTOO_STORED_PARAMS_ID  = chr(0xb)
-ARTOO_CFG_STICK_AXES_ID = chr(0xf)
+ARTOO_STORED_PARAMS_ID = 0x0B
+ARTOO_CFG_STICK_AXES_ID = 0x0F
 
 def wait_for_params(slipdev):
     while True:
-        slipdev.write("".join([ARTOO_STORED_PARAMS_ID]))
+        slipdev.write(bytes([ARTOO_STORED_PARAMS_ID]))
         pkt = slipdev.read()
-        pkt = "".join(pkt)
         if pkt[0] == ARTOO_STORED_PARAMS_ID:
             return pkt[1:]
 
@@ -46,15 +46,15 @@ def mainloop(serialpath, cfg):
     serialport = serial.Serial(serialpath, ARTOO_BAUD)
     slipdev = slip.SlipDevice(serialport)
 
-    payload = ""
+    payload = b""
     for axis in ["stick-0", "stick-1", "stick-2", "stick-3", "stick-4", "stick-5"]:
         payload += validate_and_pack_axis_info(cfg, axis)
 
-    slipdev.write(ARTOO_CFG_STICK_AXES_ID + payload)
-    print "\nverifying config..."
+    slipdev.write(bytes([ARTOO_CFG_STICK_AXES_ID]) + payload)
+    print("\nverifying config...")
     params = wait_for_params(slipdev)
     # XXX: compare params...
-    print "Calibration complete, values stored."
+    print("Calibration complete, values stored.")
 
 
 #
@@ -62,10 +62,10 @@ def mainloop(serialpath, cfg):
 #
 
 if len(sys.argv) < 3:
-    print "usage: stick-axis-cfg.py /dev/ttyMyDev configfile.cfg"
+    print("usage: stick-axis-cfg.py /dev/ttyMyDev configfile.cfg")
     sys.exit(1)
 
-config = ConfigParser.ConfigParser()
+config = configparser.ConfigParser()
 config.optionxform = str    # don't lower case all option names
 config.read(os.path.join(os.getcwd(), sys.argv[2]))
 

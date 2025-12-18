@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import sys, os
 from PIL import Image, ImageFont, ImageDraw
@@ -19,7 +19,7 @@ def genPlaceholder(fontpath, fontsize, fontfill):
     ImageDraw.Draw(im).text((0,0), glyph, font=font, fill=fontfill)
     path = "telem-placeholder-digit-%d.png" % fontsize
     im.save(path, "PNG")
-    print "wrote placeholder image to", path
+    print("wrote placeholder image to", path)
 
 
 #

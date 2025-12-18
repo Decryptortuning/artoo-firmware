@@ -1,37 +1,37 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # common defs for artoo
 
 BAUD = 115200
 
 # host protocol msg id's
-MSGID_NOP                   = chr(0x0)
-MSGID_DSM_CHANNELS          = chr(0x1)
-MSGID_CALIBRATE             = chr(0x2)
-MSGID_SYS_INFO              = chr(0x3)
-MSGID_MAVLINK               = chr(0x4)
-MSGID_SET_RAW_IO            = chr(0x5)
-MSGID_RAW_IO_REPORT         = chr(0x6)
-MSGID_PAIR_REQUEST          = chr(0x7)
-MSGID_PAIR_CONFIRM          = chr(0x8)
-MSGID_PAIR_RESULT           = chr(0x9)
-MSGID_SHUTDOWN_REQUEST      = chr(0xa)
-MSGID_PARAM_STORED_VALS     = chr(0xb)
-MSGID_OUTPUT_TEST           = chr(0xc)
-MSGID_BUTTON_EVENT          = chr(0xd)
-MSGID_INPUT_REPORT          = chr(0xe)
-MSGID_CONFIG_STICK_AXES     = chr(0xf)
-MSGID_BUTTON_FUNCTION_CFG   = chr(0x10)
-MSGID_SET_SHOT_INFO         = chr(0x11)
-MSGID_UPDATER               = chr(0x12)
-MSGID_LOCKOUT_STATE         = chr(0x13)
-MSGID_SELF_TEST             = chr(0x14)
-MSGID_SWEEP_TIME_CFG        = chr(0x15)
-MSGID_GPIO_TEST             = chr(0x16)
-MSGID_TEST_EVENT            = chr(0x17)
-MSGID_SET_TELEM_UNITS       = chr(0x18)
-MSGID_INVALID_STICK_INPUTS  = chr(0x19)
-MSGID_SOLO_APP_CONNECTION   = chr(0x1a)
+MSGID_NOP = 0x00
+MSGID_DSM_CHANNELS = 0x01
+MSGID_CALIBRATE = 0x02
+MSGID_SYS_INFO = 0x03
+MSGID_MAVLINK = 0x04
+MSGID_SET_RAW_IO = 0x05
+MSGID_RAW_IO_REPORT = 0x06
+MSGID_PAIR_REQUEST = 0x07
+MSGID_PAIR_CONFIRM = 0x08
+MSGID_PAIR_RESULT = 0x09
+MSGID_SHUTDOWN_REQUEST = 0x0A
+MSGID_PARAM_STORED_VALS = 0x0B
+MSGID_OUTPUT_TEST = 0x0C
+MSGID_BUTTON_EVENT = 0x0D
+MSGID_INPUT_REPORT = 0x0E
+MSGID_CONFIG_STICK_AXES = 0x0F
+MSGID_BUTTON_FUNCTION_CFG = 0x10
+MSGID_SET_SHOT_INFO = 0x11
+MSGID_UPDATER = 0x12
+MSGID_LOCKOUT_STATE = 0x13
+MSGID_SELF_TEST = 0x14
+MSGID_SWEEP_TIME_CFG = 0x15
+MSGID_GPIO_TEST = 0x16
+MSGID_TEST_EVENT = 0x17
+MSGID_SET_TELEM_UNITS = 0x18
+MSGID_INVALID_STICK_INPUTS = 0x19
+MSGID_SOLO_APP_CONNECTION = 0x1A
 
 # button IDs
 BtnPower        = 0
@@ -73,7 +73,7 @@ class Artoo:
         return self.slip_dev.read()
 
     def set_lockout_state(self, locked):
-        lck = chr(1) if locked else chr(0)
+        lck = 1 if locked else 0
         self.slip_dev.write([MSGID_LOCKOUT_STATE, lck])
 
     def request_sys_info(self):
@@ -90,4 +90,3 @@ class Artoo:
     
     def output_test(self, bg_btnmask, fg_btnmask, freq, haptic_secs):
         self.slip_dev.write([MSGID_OUTPUT_TEST, bg_btnmask, fg_btnmask, freq & 0xff, (freq >> 8) & 0xff, haptic_secs])
-
