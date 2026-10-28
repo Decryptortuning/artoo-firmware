@@ -2,6 +2,8 @@
 #define FLIGHTMANAGER_H
 
 #include "button.h"
+#include "commandstate.h"
+#include "stm32/irqguard.h"
 #include "hostprotocol.h"
 #include "geo.h"
 #include "home.h"
@@ -220,40 +222,14 @@ private:
         DisarmForce = 2,
     };
 
-    struct Command {
-        enum State {
-            Complete,   // complete
-            Pending,    // command ready to be sent
-            Sent,       // sent, waiting for ack
-        };
-
-        // we pend a mix of MAV_CMD and mavlink msg ids,
-        // so must map between them to avoid conflicts.
-        enum ID {
-            None,
-            SetFlightMode,
-            SetArmState,
-            GetHomeWaypoint,
-            Takeoff,
-            FlyButtonClick,
-            FlyButtonHold,
-            PauseButtonClick,
-        };
-
-        ID id;
-        State state;
-        // data that must accompany this command
-        union {
-            FlightMode flightMode;
-            uint8_t arm;    // arm, disarm, or force disarm
-            uint16_t waypoint;
-        };
-
-        void set(ID id_) {
-            ASSERT(state != Pending);
-            id = id_;
-            state = Pending;
+    struct Command : CommandState {
+        bool set(ID operation, uint32_t value = 0) {
+            {
+                InterruptGuard guard;
+                if (!schedule(operation, value)) return false;
+            }
             HostProtocol::instance.requestTransaction();
+            return true;
         }
     };
 
@@ -273,6 +249,7 @@ private:
     StatusText statusTxt;
     unsigned linkConnCounter;
     Command command;
+    bool homeRequestPending;
     Telemetry telemetryVals;
 
     Coord2D currentLoc;
@@ -296,7 +273,7 @@ private:
 
     void beginTakeoff();
 
-    void requestFlightModeChange(FlightMode m);
+    bool requestFlightModeChange(FlightMode m);
     void requestArmStateChange(ArmState as);
     void requestHomeWaypoint();
 
@@ -319,7 +296,7 @@ private:
 
     void sendCmd(mavlink_message_t *msg);
     void cmdAcknowledged(const mavlink_command_ack_t *ack);
-    void onFlightModeAck(const mavlink_command_ack_t *ack);
+    void onFlightModeConfirmed();
 
     bool batteryPhaseTransition(int8_t battLevel);
     void updateBatteryPhase(int8_t battLevel);

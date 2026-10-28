@@ -27,6 +27,7 @@ FlightManager::FlightManager() :
     statusTxt(),
     linkConnCounter(LINK_CONN_DURATION),
     command(),
+    homeRequestPending(false),
     telemetryVals(),
     currentLoc(),
     home(),
@@ -79,6 +80,14 @@ void FlightManager::sysHeartbeat()
      * Do any work that requires periodic attention.
      */
 
+    if (command.expire(SysTime::now())) {
+        takeoffState = TakeoffNone;
+    }
+    if (homeRequestPending && command.state == Command::Complete) {
+        homeRequestPending = false;
+        command.set(Command::GetHomeWaypoint, 0);
+    }
+
     if (linkIsConnected()) {
         if (++linkConnCounter >= LINK_CONN_DURATION) {
             linkDisconnected();
@@ -100,6 +109,9 @@ void FlightManager::linkConnected()
 
 void FlightManager::linkDisconnected()
 {
+    command.state = Command::Complete;
+    homeRequestPending = false;
+    takeoffState = TakeoffNone;
     Ui::instance.alertManager.dismiss(); // TODO: a bit heavy handed, could categorize alerts (e.g. dismissed by vehicle) and check whether alert needs to be dismissed
     Ui::instance.pendEvent(Event::VehicleConnectionChanged);
 
@@ -159,6 +171,8 @@ void FlightManager::updateRCFailsafeState(uint8_t sysStatus)
 
 bool FlightManager::producePacket(HostProtocol::Packet &p)
 {
+    static_assert(RTL == 6 && LAND == 9 && SMART_RTL == 21 && Armed == 1,
+                  "CommandState priority uses these protocol values");
     /*
      * Our opportunity to send a message via the host.
      */
@@ -167,30 +181,34 @@ bool FlightManager::producePacket(HostProtocol::Packet &p)
         mavlink_message_t msg;
         sendCmd(&msg);
         Mavlink::packetizeMsg(p, &msg);
-        command.state = Command::Sent;
+        const bool longCommand = msg.msgid == MAVLINK_MSG_ID_COMMAND_LONG;
+        const uint16_t wire = longCommand ? mavlink_msg_command_long_get_command(&msg) : msg.msgid;
+        const Command::Response response = msg.msgid == MAVLINK_MSG_ID_MISSION_REQUEST ? Command::MissionItem :
+                                           msg.msgid == MAVLINK_MSG_ID_SET_MODE ? Command::ModeState : Command::Ack;
+        command.sent(wire, response,
+                     SysTime::now() + SysTime::sTicks(5));
         return true;
     }
 
     return false;
 }
 
-void FlightManager::requestFlightModeChange(FlightMode m)
+bool FlightManager::requestFlightModeChange(FlightMode m)
 {
     /*
      * helper to request flight mode change
      */
 
-    if (mode != m) {
-        command.flightMode = m;
-        command.set(Command::SetFlightMode);
-    }
+    if (mode == m) return true;
+    const bool accepted = command.set(Command::SetFlightMode, m);
+    if (accepted && m != LOITER) takeoffState = TakeoffNone;
+    return accepted;
 }
 
 void FlightManager::requestArmStateChange(ArmState as)
 {
     if (armState != as) {
-        command.arm = as;
-        command.set(Command::SetArmState);
+        if (command.set(Command::SetArmState, as) && as != Armed) takeoffState = TakeoffNone;
     }
 }
 
@@ -202,8 +220,7 @@ void FlightManager::requestHomeWaypoint()
      * distance from home.
      */
 
-    command.waypoint = 0;
-    command.set(Command::GetHomeWaypoint);
+    homeRequestPending = !command.set(Command::GetHomeWaypoint, 0);
 }
 
 void FlightManager::onFlyButtonEvt(Button *b, Button::Event evt)
@@ -319,7 +336,7 @@ void FlightManager::onPauseButtonEvt(Button *b, Button::Event e)
     
     if (e == Button::ClickRelease) {
         if (inFlight()) {
-            command.set(Command::PauseButtonClick);
+            if (command.set(Command::PauseButtonClick)) takeoffState = TakeoffNone;
             Haptic::startPattern(Haptic::SingleMedium);
         }
     }
@@ -369,11 +386,9 @@ void FlightManager::beginTakeoff()
      */
 
     if (mode == LOITER) {
-        takeoffState = TakeoffSentTakeoffCmd;
-        command.set(Command::Takeoff);
+        takeoffState = command.set(Command::Takeoff) ? TakeoffSentTakeoffCmd : TakeoffNone;
     } else {
-        takeoffState = TakeoffSetMode;
-        requestFlightModeChange(LOITER);
+        takeoffState = requestFlightModeChange(LOITER) ? TakeoffSetMode : TakeoffNone;
     }
 }
 
@@ -414,6 +429,10 @@ void FlightManager::onSoloMavlinkMsg(const mavlink_message_t * msg)
         if (heartbeat.system_status != systemStatus) {
             onSystemStatusChanged(heartbeat.system_status);
             systemStatus = heartbeat.system_status;
+        }
+        if (command.confirmMode(vehicleFlightMode, msg->sysid == Mavlink::SoloSysID &&
+                                msg->compid == Mavlink::SoloComponentID)) {
+            onFlightModeConfirmed();
         }
 
         // see comment in MAVLINK_MSG_ID_EKF_STATUS_REPORT handling
@@ -484,10 +503,10 @@ void FlightManager::onSoloMavlinkMsg(const mavlink_message_t * msg)
     case MAVLINK_MSG_ID_COMMAND_ACK:
         mavlink_command_ack_t ack;
         mavlink_msg_command_ack_decode(msg, &ack);
-        if (ack.command == command.id) {
-            command.state = Command::Complete;   // completion handlers may update this
+        if (command.acknowledge(ack.command, msg->sysid == Mavlink::SoloSysID &&
+                               msg->compid == Mavlink::SoloComponentID)) {
+            cmdAcknowledged(&ack);
         }
-        cmdAcknowledged(&ack);
         break;
 
     case MAVLINK_MSG_ID_STATUSTEXT:
@@ -545,6 +564,8 @@ void FlightManager::onSoloMavlinkMsg(const mavlink_message_t * msg)
     case MAVLINK_MSG_ID_MISSION_ITEM:
         mavlink_mission_item_t item;
         mavlink_msg_mission_item_decode(msg, &item);
+        command.missionItem(item.seq, msg->sysid == Mavlink::SoloSysID &&
+                            msg->compid == Mavlink::SoloComponentID);
 
         if (home.update(item)) {
             Ui::instance.pendEvent(Event::HomeLocationChanged);
@@ -915,8 +936,8 @@ void FlightManager::sendCmd(mavlink_message_t *msg)
                                       Mavlink::SoloSysID, MAV_COMP_ID_SYSTEM_CONTROL,
                                       MAV_CMD_COMPONENT_ARM_DISARM,
                                       0,                    // confirmation
-                                      (command.arm == Armed) ? 1 : 0,  // 1 for arm, 0 for disarm
-                                      (command.arm == DisarmForce) ? ForceDisarmMagic : 0,
+                                      (command.argument == Armed) ? 1 : 0,  // 1 for arm, 0 for disarm
+                                      (command.argument == DisarmForce) ? ForceDisarmMagic : 0,
                                       0, 0, 0, 0, 0);    // params 3-7
         break;
 
@@ -931,7 +952,7 @@ void FlightManager::sendCmd(mavlink_message_t *msg)
 
     case Command::SetFlightMode:
         mavlink_msg_set_mode_pack(Mavlink::ArtooSysID, Mavlink::ArtooComponentID, msg, Mavlink::SoloSysID,
-                                  MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, command.flightMode);
+                                  MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, command.argument);
         break;
 
     case Command::FlyButtonClick:
@@ -963,7 +984,7 @@ void FlightManager::sendCmd(mavlink_message_t *msg)
     case Command::GetHomeWaypoint:
         mavlink_msg_mission_request_pack(Mavlink::ArtooSysID, Mavlink::ArtooComponentID, msg,
                                          Mavlink::SoloSysID, Mavlink::SoloComponentID,
-                                         command.waypoint);
+                                         command.argument);
         break;
 
     default:
@@ -985,10 +1006,6 @@ void FlightManager::cmdAcknowledged(const mavlink_command_ack_t *ack)
         }
         break;
 
-    case MAVLINK_MSG_ID_SET_MODE:
-        onFlightModeAck(ack);
-        break;
-
     case MAV_CMD_NAV_TAKEOFF:
         if (ack->result == MAV_RESULT_ACCEPTED) {
             takeoffState = TakeoffAscending;
@@ -1003,21 +1020,19 @@ void FlightManager::cmdAcknowledged(const mavlink_command_ack_t *ack)
     }
 }
 
-void FlightManager::onFlightModeAck(const mavlink_command_ack_t *ack)
+void FlightManager::onFlightModeConfirmed()
 {
     /*
-     * A flight mode request has been acknowledged.
+     * A vehicle heartbeat confirms the requested mode. SET_MODE is not a
+     * COMMAND_LONG operation and does not require a COMMAND_ACK convention.
      *
      * Mainly, we're checking to see whether the mode change was a
      * change to LOITER to enable takeoff.
      */
 
-    if (ack->result == MAV_RESULT_ACCEPTED) {
-        if (takeoffState == TakeoffSetMode && systemStatus == MAV_STATE_STANDBY) {
-            takeoffState = TakeoffSentTakeoffCmd;
-            command.set(Command::Takeoff);
-            return;
-        }
+    if (takeoffState == TakeoffSetMode && systemStatus == MAV_STATE_STANDBY) {
+        takeoffState = command.set(Command::Takeoff) ? TakeoffSentTakeoffCmd : TakeoffNone;
+        return;
     }
 
     takeoffState = TakeoffNone;
