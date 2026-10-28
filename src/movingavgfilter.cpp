@@ -19,6 +19,6 @@ void MovingAvgFilter::update(int32_t measurement, uint16_t alpha)
         return;
     }
 
-    int64_t tmp = (int64_t)measurement * (alpha + 1) + avg * (USHRT_MAX - alpha);
+    int64_t tmp = (int64_t)measurement * (alpha + 1) + (int64_t)avg * (USHRT_MAX - alpha);
     avg = (tmp + 32768) / 65536;
 }
