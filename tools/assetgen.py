@@ -186,7 +186,9 @@ def convertFont(cfg_path, fontname, font_opts_str, palettes, cpp, hdr):
     font_glyphs_str.write("static const Gfx::GlyphAsset %s_glyphs[] = {" % fontname)
 
     for g in glyphs:
-        w, h = font.getsize(g)
+        # Preserve getsize semantics: height includes the top bearing.
+        left, top, right, bottom = font.getbbox(g)
+        w, h = right - left, bottom
         im = Image.new("RGBA", (w, h))
         draw = ImageDraw.Draw(im)
         draw.rectangle([(0,0), im.size], fill=bg)

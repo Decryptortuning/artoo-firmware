@@ -18,3 +18,6 @@
 src/version.cpp
 src/resources-gen.cpp
 src/resources-gen.h
+
+.venv/
+build-once.sh

@@ -1,0 +1,8 @@
+{
+  "repository": "https://github.com/OpenSolo/OpenSolo.git",
+  "revision": "5b745243a2d88691ccd045e7238742431c668a5a",
+  "component": "artoo",
+  "split_revision": "b1f579c3161ec8ea857ade99d68e4491e7cdcdaf",
+  "owner_patch": "31901c3500eee205534fade61e5c19b0e3622e19",
+  "version_policy": "4.0.0 development lineage; not an upstream release or hardware-qualified build"
+}
