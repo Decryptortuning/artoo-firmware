@@ -121,13 +121,13 @@ void Gfx::drawBitmapBytes(int16_t x, int16_t y, ImageFormat fmt, const ImagePale
                     ASSERT(chunk > 0);
 
                     switch (chunk) {
-                        case 8: drawPixelAtCursor(pixel);
-                        case 7: drawPixelAtCursor(pixel);
-                        case 6: drawPixelAtCursor(pixel);
-                        case 5: drawPixelAtCursor(pixel);
-                        case 4: drawPixelAtCursor(pixel);
-                        case 3: drawPixelAtCursor(pixel);
-                        case 2: drawPixelAtCursor(pixel);
+                        case 8: drawPixelAtCursor(pixel); // fall through
+                        case 7: drawPixelAtCursor(pixel); // fall through
+                        case 6: drawPixelAtCursor(pixel); // fall through
+                        case 5: drawPixelAtCursor(pixel); // fall through
+                        case 4: drawPixelAtCursor(pixel); // fall through
+                        case 3: drawPixelAtCursor(pixel); // fall through
+                        case 2: drawPixelAtCursor(pixel); // fall through
                         case 1: drawPixelAtCursor(pixel);
                         case 0: break;
                     };
@@ -144,25 +144,25 @@ void Gfx::drawBitmapBytes(int16_t x, int16_t y, ImageFormat fmt, const ImagePale
 
                     if (isGrayscale) {
                         switch (chunk) {
-                            case 8: drawPixelAtCursor(ch.grayToColor(p->color(*b++)));
-                            case 7: drawPixelAtCursor(ch.grayToColor(p->color(*b++)));
-                            case 6: drawPixelAtCursor(ch.grayToColor(p->color(*b++)));
-                            case 5: drawPixelAtCursor(ch.grayToColor(p->color(*b++)));
-                            case 4: drawPixelAtCursor(ch.grayToColor(p->color(*b++)));
-                            case 3: drawPixelAtCursor(ch.grayToColor(p->color(*b++)));
-                            case 2: drawPixelAtCursor(ch.grayToColor(p->color(*b++)));
+                            case 8: drawPixelAtCursor(ch.grayToColor(p->color(*b++))); // fall through
+                            case 7: drawPixelAtCursor(ch.grayToColor(p->color(*b++))); // fall through
+                            case 6: drawPixelAtCursor(ch.grayToColor(p->color(*b++))); // fall through
+                            case 5: drawPixelAtCursor(ch.grayToColor(p->color(*b++))); // fall through
+                            case 4: drawPixelAtCursor(ch.grayToColor(p->color(*b++))); // fall through
+                            case 3: drawPixelAtCursor(ch.grayToColor(p->color(*b++))); // fall through
+                            case 2: drawPixelAtCursor(ch.grayToColor(p->color(*b++))); // fall through
                             case 1: drawPixelAtCursor(ch.grayToColor(p->color(*b++)));
                             case 0: break;
                         };
                     } else {
                         switch (chunk) {
-                            case 8: drawPixelAtCursor(p->color(*b++));
-                            case 7: drawPixelAtCursor(p->color(*b++));
-                            case 6: drawPixelAtCursor(p->color(*b++));
-                            case 5: drawPixelAtCursor(p->color(*b++));
-                            case 4: drawPixelAtCursor(p->color(*b++));
-                            case 3: drawPixelAtCursor(p->color(*b++));
-                            case 2: drawPixelAtCursor(p->color(*b++));
+                            case 8: drawPixelAtCursor(p->color(*b++)); // fall through
+                            case 7: drawPixelAtCursor(p->color(*b++)); // fall through
+                            case 6: drawPixelAtCursor(p->color(*b++)); // fall through
+                            case 5: drawPixelAtCursor(p->color(*b++)); // fall through
+                            case 4: drawPixelAtCursor(p->color(*b++)); // fall through
+                            case 3: drawPixelAtCursor(p->color(*b++)); // fall through
+                            case 2: drawPixelAtCursor(p->color(*b++)); // fall through
                             case 1: drawPixelAtCursor(p->color(*b++));
                             case 0: break;
                         };
