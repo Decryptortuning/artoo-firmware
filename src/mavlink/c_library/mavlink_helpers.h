@@ -80,10 +80,13 @@ MAVLINK_HELPER uint16_t mavlink_finalize_message_chan(mavlink_message_t* msg, ui
 	// One sequence number per channel
 	msg->seq = mavlink_get_channel_status(chan)->current_tx_seq;
 	mavlink_get_channel_status(chan)->current_tx_seq = mavlink_get_channel_status(chan)->current_tx_seq+1;
-	msg->checksum = crc_calculate(((const uint8_t*)(msg)) + 3, MAVLINK_CORE_HEADER_LEN);
-	crc_accumulate_buffer(&msg->checksum, _MAV_PAYLOAD(msg), msg->len);
+	uint16_t checksum = crc_calculate(((const uint8_t*)(msg)) + 3, MAVLINK_CORE_HEADER_LEN);
+	crc_accumulate_buffer(&checksum, _MAV_PAYLOAD(msg), msg->len);
 #if MAVLINK_CRC_EXTRA
-	crc_accumulate(crc_extra, &msg->checksum);
+	crc_accumulate(crc_extra, &checksum);
+	msg->checksum = checksum;
+#else
+	msg->checksum = checksum;
 #endif
 	mavlink_ck_a(msg) = (uint8_t)(msg->checksum & 0xFF);
 	mavlink_ck_b(msg) = (uint8_t)(msg->checksum >> 8);
@@ -195,12 +198,14 @@ union __mavlink_bitfield {
 
 MAVLINK_HELPER void mavlink_start_checksum(mavlink_message_t* msg)
 {
-	crc_init(&msg->checksum);
+	msg->checksum = X25_INIT_CRC;
 }
 
 MAVLINK_HELPER void mavlink_update_checksum(mavlink_message_t* msg, uint8_t c)
 {
-	crc_accumulate(c, &msg->checksum);
+	uint16_t checksum = msg->checksum;
+	crc_accumulate(c, &checksum);
+	msg->checksum = checksum;
 }
 
 /**

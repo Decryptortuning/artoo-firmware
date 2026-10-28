@@ -260,18 +260,10 @@ def writeWarning(f):
 
 
 def checkPilVersion():
-    import pkg_resources
-    try:
-        v = pkg_resources.get_distribution("pillow").version
-        maj, min, patch = [int(c) for c in v.split(".")]
-        if maj < 2 or (maj == 2 and min < 6):
-            print(
-                "err: pillow installation is older than 2.6.x, try `pip install --upgrade pillow` to get the latest"
-            )
-            sys.exit(1)
-    except pkg_resources.DistributionNotFound:
-        print("pillow is not installed - check ReadMe.md for installation info")
-        sys.exit(1)
+    from importlib.metadata import version
+    if int(version("Pillow").split(".")[0]) < 10:
+        raise RuntimeError("Use the pinned Pillow build requirements")
+
 
 #
 # main

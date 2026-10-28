@@ -87,7 +87,7 @@ CPPSRCS := src/*.cpp src/stm32/*.cpp
 # we pass source to GCC via stdin, then add the object file to our list of .o's to link
 GIT_TAG := vers=`./git_describe_tag`
 VERSION_SRC := "#include \"src/version.h\"\nconst char* Version::str() {return \"$vers\";}"
-COMPILE_VERSION := $(GIT_TAG); echo $(VERSION_SRC) | $(CXX) $(CXXFLAGS) $(CPPFLAGS) $(ARCH_FLAGS) -x c++ -c - -o $(OBJDIR)/version.o
+COMPILE_VERSION := $(GIT_TAG); printf '%b\n' $(VERSION_SRC) | $(CXX) $(CXXFLAGS) $(CPPFLAGS) $(ARCH_FLAGS) -x c++ -c - -o $(OBJDIR)/version.o
 
 # link binary
 : $(OBJDIR)/*.o |> $(COMPILE_VERSION); $(LD) $(LDFLAGS) $(ARCH_FLAGS) %f $(LDLIBS) -o %o |> $(PROJECT).elf $(OBJDIR)/version.o | $(PROJECT).map
