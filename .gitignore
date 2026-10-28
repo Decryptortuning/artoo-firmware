@@ -24,3 +24,5 @@ build-once.sh
 /tup-generate.vardict
 
 *.su
+
+/build-manifest.json

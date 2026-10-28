@@ -49,6 +49,13 @@ CPPFLAGS += -DARTOO_FACTORY_TESTS=1
 else
 CPPFLAGS += -DARTOO_FACTORY_TESTS=0
 endif
+ifeq (@(BENCH_NO_IDLE),y)
+CPPFLAGS += -DARTOO_BENCH_NO_IDLE=1
+VERSION_ARGS := --bench-noidle
+else
+CPPFLAGS += -DARTOO_BENCH_NO_IDLE=0
+VERSION_ARGS :=
+endif
 ifeq ($(SEMIHOSTING),yes)
 CPPFLAGS  += -DSEMIHOSTING
 endif
@@ -98,7 +105,7 @@ CPPSRCS := src/*.cpp src/stm32/*.cpp
 
 # generate version string as well via tup trickery
 # we pass source to GCC via stdin, then add the object file to our list of .o's to link
-GIT_TAG := vers=`./git_describe_tag`
+GIT_TAG := vers=`./git_describe_tag $(VERSION_ARGS)`
 VERSION_SRC := "#include \"src/version.h\"\nconst char* Version::str() {return \"$vers\";}"
 COMPILE_VERSION := $(GIT_TAG); printf '%b\n' $(VERSION_SRC) | $(CXX) $(CXXFLAGS) $(CPPFLAGS) $(ARCH_FLAGS) -x c++ -c - -o $(OBJDIR)/version.o
 

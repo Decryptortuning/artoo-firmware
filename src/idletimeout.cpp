@@ -4,8 +4,15 @@
 #include "buttonmanager.h"
 #include "haptic.h"
 
+// Explicit development build only. All other builds retain the normal timeout.
+#ifndef ARTOO_BENCH_NO_IDLE
+#define ARTOO_BENCH_NO_IDLE 0
+#endif
+#if ARTOO_BENCH_NO_IDLE != 0 && ARTOO_BENCH_NO_IDLE != 1
+#error "ARTOO_BENCH_NO_IDLE must be 0 or 1"
+#endif
 unsigned IdleTimeout::ticker;
-bool IdleTimeout::userDisabled;
+bool IdleTimeout::userDisabled = ARTOO_BENCH_NO_IDLE;
 
 void IdleTimeout::onButtonEvent(Button *b, Button::Event e)
 {

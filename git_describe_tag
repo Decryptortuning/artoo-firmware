@@ -1,9 +1,15 @@
 #!/bin/bash
 set -euo pipefail
 cd -- "$(dirname -- "$0")"
+build_suffix=""
+case "${1:-}" in
+    "") [[ $# -eq 0 ]] || exit 2 ;;
+    --bench-noidle) [[ $# -eq 1 ]] || exit 2; build_suffix="-bench-noidle" ;;
+    *) echo 'Usage: git_describe_tag [--bench-noidle]' >&2; exit 2 ;;
+esac
 version=$(cat VERSION)
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]] || { echo "Invalid firmware VERSION" >&2; exit 1; }
 revision=$(git rev-parse --short=12 HEAD)
 suffix=""
 git diff --quiet HEAD -- || suffix="-dirty"
-printf '%s+g%s%s\n' "$version" "$revision" "$suffix"
+printf '%s+g%s%s\n' "$version" "$revision" "$suffix$build_suffix"

@@ -34,11 +34,30 @@ the binary in Yocto or enable MCU updates. Hardware programming is a separate st
 ## Correctness profiles and local evidence
 
 `scripts/build-wsl.sh` defaults to `production dvt`. Explicit profiles are
-`production|factory` and `dvt|bb03`, selected through tracked `configs/*.config`.
+`production|factory|bench` and `dvt|bb03`, selected through tracked `configs/*.config`.
 The factory profile enables output/GPIO/self-test and synthetic event requests;
 production rejects these requests and does not link their handlers. Raw stick
 I/O and calibration diagnostics remain available in production. Factory images
 are separate bench artifacts and are never automatically packaged or flashed.
+
+The explicit development command `./scripts/build-wsl.sh bench dvt` (or `bb03`)
+starts with only the idle countdown disabled. It does not select updater UI,
+pretend a vehicle is connected, enable factory handlers, change calibration, or
+alter manual/battery shutdown logic. Normal production and factory builds keep
+the original idle countdown and existing disable-button combo. There is no new
+wire message or persistent setting. Return to a normal production image to
+restore the default countdown on subsequent boots.
+
+Bench images have the distinct `-bench-noidle` version suffix. Every wrapper
+build emits ignored `build-manifest.json` with the exact embedded version,
+profile, board, source/config identity and artifact hashes. Copy this manifest
+with immutable qualified artifacts and use its `version` for updater verification;
+do not reconstruct a version from the checkout's current hash. The optional
+`versioned-binaries.sh` packaging helper checks these hashes before naming files
+from that manifest. Direct Tup builds do not emit the wrapper manifest.
+`tests/check_idletimeout.py` exercises actual idle logic with inert external sinks
+for default, explicit-normal and explicit-bench modes. It does not qualify
+physical shutdown behavior.
 
 The build emits GCC `.su` stack-usage files. These describe individual compiled
 functions, not complete interrupt nesting or a hardware high-water mark. The
