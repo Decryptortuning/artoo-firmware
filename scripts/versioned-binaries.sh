@@ -1,8 +1,10 @@
 #!/bin/sh
 
+set -eu
+cd -- "$(dirname -- "$0")/.."
 PROG=artoo
 
-VERSION=$(git describe --tags)
+VERSION=$(./git_describe_tag)
 DEST=bins
 
 rm -rf ${DEST}
