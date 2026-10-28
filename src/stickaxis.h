@@ -26,9 +26,10 @@ public:
 
     StickAxis(Io::AdcID id, Direction d, uint16_t _dz);
 
-    void init(const Params::StickCalibration &sc, const Params::StickConfig &c);
+    void init(const Params::StickCalibration &sc, const Params::StickConfig &c, unsigned mappedID);
+    void setRawID(Io::AdcID id) { rawID = id; }
     void setCalibration(const Params::StickCalibration &sc);
-    void setConfig(const Params::StickConfig &c);
+    void setConfig(const Params::StickConfig &c, unsigned mappedID);
     void update(uint16_t v);
 
     Io::AdcID ALWAYS_INLINE getRawID() const {
@@ -114,7 +115,7 @@ private:
 
     bool calibrated;    // was calibration successfully applied?
 
-    unsigned defaultExpo() const;
+    static unsigned defaultExpo(unsigned mappedID);
 
     bool valueIsAcceptable(uint16_t rawVal) const;
 };

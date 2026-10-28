@@ -286,42 +286,33 @@ void HostProtocol::processPacket(const RxPacket &p)
         Inputs::setRawIoEnabled(bytes[1] != 0);
         break;
 
-    case Calibrate:
-        // don't apply stick calibration changes while armed
-        if (!FlightManager::instance.armed()) {
-            Params::StoredValues &sv = Params::sys.storedValues;
-            if (p.payloadLen() >= sizeof(sv.sticks)) {
-                memcpy(sv.sticks, &bytes[1], sizeof(sv.sticks));
-
-                // dismiss any previous stick-related error alerts, load params
-                Inputs::onCalibrationApplied();
-                Params::sys.mark();
-            }
-        }
+    case Calibrate: {
+        if (FlightManager::instance.armed()) break;
+        Params::StickCalibration calibration[6];
+        memcpy(calibration, bytes + 1, sizeof calibration);
+        if (!Inputs::applyStickParams(calibration, Params::sys.storedValues.rcSticks))
+            ++stats.rejectedFrames;
         break;
+    }
 
-    case ConfigSweepTime:{
-        Params::StoredValues &sv = Params::sys.storedValues;
-
-        if (p.payloadLen() >= sizeof(sv.sweepConfig)){
-            memcpy(&sv.sweepConfig, &bytes[1], sizeof(sv.sweepConfig));
-            CameraControl::instance.setSweepConfig(sv.sweepConfig);
-            Params::sys.mark();
-        }
-
-        break;}
-
-    case ConfigStickAxes:
-        // don't apply stick axis changes while armed
-        if (!FlightManager::instance.armed()) {
-            Params::StoredValues &sv = Params::sys.storedValues;
-            if (p.payloadLen() >= sizeof(sv.rcSticks)) {
-                memcpy(sv.rcSticks, &bytes[1], sizeof sv.rcSticks);
-                Inputs::loadStickParams();
-                Params::sys.mark();
-            }
-        }
+    case ConfigSweepTime: {
+        Params::SweepConfig config;
+        memcpy(&config, bytes + 1, sizeof config);
+        if (!config.isValid()) { ++stats.rejectedFrames; break; }
+        InterruptGuard guard;
+        Params::sys.storedValues.sweepConfig = config;
+        CameraControl::instance.setSweepConfig(config);
+        Params::sys.mark();
         break;
+    }
+
+    case ConfigStickAxes: {
+        if (FlightManager::instance.armed()) break;
+        Params::StickConfig configs[6];
+        memcpy(configs, bytes + 1, sizeof configs);
+        if (!Inputs::applyStickParams(nullptr, configs)) ++stats.rejectedFrames;
+        break;
+    }
 
     case ButtonFunctionCfg: {
         static_assert(sizeof(ButtonFunction::Config) == ButtonConfigBytes, "button wire layout");

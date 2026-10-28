@@ -69,9 +69,20 @@ public:
 
     static bool programHalfWord(uint16_t halfword, uint32_t address);
 
-    static inline void endProgramming() {
-        waitForPreviousOperation();
+    static inline bool endProgramming() {
+        const bool ok = waitForPreviousOperation() == StatusComplete;
         FLASH.CR &= ~CR_PG;
+        return ok;
+    }
+
+    static inline void clearStatus() {
+        // Error and EOP bits are write-one-to-clear. Start each independent
+        // transaction fresh, after preserving the preceding operation result.
+        FLASH.SR = SR_PGERR | SR_WRPRTERR | SR_EOP;
+    }
+
+    static inline uint16_t readHalfWord(uint32_t address) {
+        return *reinterpret_cast<volatile const uint16_t*>(address);
     }
 
     /*

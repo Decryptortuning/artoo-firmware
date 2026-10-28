@@ -1,4 +1,5 @@
 #include "params.h"
+#include "paramstore.h"
 #include "flightmanager.h"
 
 #include <string.h>
@@ -14,6 +15,15 @@ void Params::load()
      */
 
     memcpy(&storedValues, reinterpret_cast<const void*>(ParamsPageAddr), sizeof(storedValues));
+    // Old initialized labels may fill their field without a NUL. Leave
+    // erased configs untouched so ButtonManager still supplies its defaults.
+    for (unsigned i = 0; i < arraysize(storedValues.buttonConfigs); ++i) {
+        ButtonFunction::Config &cfg = storedValues.buttonConfigs[i];
+        if (isInitialized(&cfg, sizeof cfg)) cfg.descriptor[sizeof cfg.descriptor - 1] = '\0';
+    }
+    // Preserve invalid stored mappings for diagnostics. Inputs locks out
+    // control reports until an explicitly valid configuration is applied.
+
 }
 
 bool Params::save()
@@ -26,33 +36,20 @@ bool Params::save()
      * or during shutdown.
      */
 
-    if (!dirty) {
-        return true;
+    StoredValues snapshot;
+    uint32_t savedGeneration;
+    {
+        InterruptGuard guard;
+        if (!pending.dirty) return true;
+        snapshot = storedValues;
+        savedGeneration = pending.generation;
     }
-
-    McuFlash::unlock();
-
-    if (!McuFlash::erasePage(ParamsPageAddr)) {
-        return false;
+    if (!ParamStore::write<McuFlash>(ParamsPageAddr, &snapshot, sizeof snapshot)) return false;
+    {
+        InterruptGuard guard;
+        // A new ISR edit during the transaction must remain pending.
+        pending.complete(savedGeneration, true);
     }
-
-    const uint16_t *ptr = reinterpret_cast<const uint16_t *>(&storedValues);
-    unsigned addr = ParamsPageAddr;
-    const unsigned end = addr + sizeof(storedValues);
-
-    McuFlash::beginProgramming();
-    while (addr < end) {
-        if (!McuFlash::programHalfWord(*ptr, addr)) {
-            McuFlash::endProgramming();
-            return false;
-        }
-        addr += sizeof(uint16_t);
-        ptr++;
-    }
-    McuFlash::endProgramming();
-
-    McuFlash::lock();
-
     return true;
 }
 
@@ -76,7 +73,6 @@ void Params::periodicWork()
             DBG(("error syncing params\n"));
         }
         syncDeadline = now + SysTime::msTicks(SYNC_MILLIS);
-        dirty = false;
     }
 }
 

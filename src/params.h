@@ -2,6 +2,9 @@
 #define PARAMS_H
 
 #include "buttonfunction.h"
+#include "paramvalidation.h"
+#include "paramstore.h"
+#include "stm32/irqguard.h"
 #include "tasks.h"
 
 #include "stm32/mcuflash.h"
@@ -30,7 +33,7 @@ public:
         uint16_t maxVal;
 
         ALWAYS_INLINE bool isValid() const {
-            return isInitialized(this, sizeof(struct StickCalibration));
+            return ParamValidation::calibration(minVal, trim, maxVal);
         }
     };
 
@@ -39,7 +42,7 @@ public:
         float targetPos;
 
         ALWAYS_INLINE bool isValid() const {
-            return isInitialized(this, sizeof(struct CameraPreset));
+            return ParamValidation::cameraPreset(targetPos);
         }
     };
 
@@ -49,7 +52,7 @@ public:
         sweeptime_t maxSweepSec;
 
         ALWAYS_INLINE bool isValid() const {
-            return isInitialized(this, sizeof(struct SweepConfig));
+            return ParamValidation::sweep(minSweepSec, maxSweepSec);
         }
     };
 
@@ -62,7 +65,7 @@ public:
         uint32_t reserved2;
 
         ALWAYS_INLINE bool isValid() const {
-            return isInitialized(this, sizeof(struct StickConfig));
+            return ParamValidation::stickConfig(input, expo);
         }
     };
 
@@ -78,7 +81,8 @@ public:
     void load();
     bool save();
     void mark() {
-        dirty = true;
+        InterruptGuard guard;
+        pending.mark();
     }
 
     void periodicWork();
@@ -92,7 +96,7 @@ private:
     // sync params once a second
     static const unsigned SYNC_MILLIS = 1000;
 
-    bool dirty;
+    ParamStore::PendingWrite pending;
     SysTime::Ticks syncDeadline;
 };
 

@@ -14,6 +14,7 @@ uint16_t Inputs::adcSamples[];
 Inputs::InvalidStickValues Inputs::invalidStickVals;
 SysTime::Ticks Inputs::alertStateEnterTimestamp;
 
+bool Inputs::mappingValid;
 bool Inputs::reportRequested;
 bool Inputs::rawIoEnabled;
 uint8_t Inputs::invalidStickInputMask;
@@ -92,9 +93,15 @@ void Inputs::loadStickParams()
      */
 
     const Params::StoredValues &sv = Params::sys.storedValues;
+    mappingValid = ParamValidation::mappings(sv.rcSticks);
+    if (!mappingValid) {
+        invalidStickInputMask = 0x3f;
+        return;
+    }
     for (unsigned rawID = 0; rawID < arraysize(sticks); ++rawID) {
         unsigned mappedID = mappedStickID(rawID);
-        sticks[mappedID].init(sv.sticks[rawID], sv.rcSticks[rawID]);
+        sticks[mappedID].setRawID(static_cast<Io::AdcID>(rawID));
+        sticks[mappedID].init(sv.sticks[rawID], sv.rcSticks[rawID], mappedID);
     }
 }
 
@@ -106,13 +113,17 @@ void Inputs::adcConversionComplete()
 
     static const unsigned NUM_RC_STICKS = 4;
 
-    for (unsigned rawID = 0; rawID < NUM_RC_STICKS; ++rawID) {
-        unsigned mappedID = mappedStickID(rawID);
-        sticks[mappedID].update(adcSamples[rawID]);
-    }
+    if (mappingValid) {
+        for (unsigned rawID = 0; rawID < NUM_RC_STICKS; ++rawID) {
+            unsigned mappedID = mappedStickID(rawID);
+            sticks[mappedID].update(adcSamples[rawID]);
+        }
 
-    sticks[Io::StickGimbalY].update(adcSamples[Io::AdcGimbalY]);
-    sticks[Io::StickGimbalRate].update(adcSamples[Io::AdcGimbalRate]);
+        sticks[Io::StickGimbalY].update(adcSamples[Io::AdcGimbalY]);
+        sticks[Io::StickGimbalRate].update(adcSamples[Io::AdcGimbalRate]);
+    } else {
+        onInvalidStickInput(Io::AdcStick0, adcSamples[0], 0xffff, 0xffff, 0xffff);
+    }
 
 #if (BOARD >= BOARD_BB03)
     if (Battery::instance.samplesEnabled()) {
@@ -269,35 +280,21 @@ unsigned Inputs::mappedStickID(unsigned rawID)
      * Mapped IDs are in terms of control axes: throttle, roll, pitch, yaw.
      */
 
-    // defaults for EVT boards.
-    static const unsigned EVTStickAxisMap[] = {
-        Io::AdcStick3,      // StickThro
-        Io::AdcStick2,      // StickRoll
-        Io::AdcStick1,      // StickPitch
-        Io::AdcStick0,      // StickYaw
-        Io::AdcGimbalY,     // no change - direct mapping
-        Io::AdcGimbalRate,  // no change - direct mapping
-    };
-
-    ASSERT(stickIdIsValid(rawID));
-
-    uint8_t mappedId = Params::sys.storedValues.rcSticks[rawID].input;
-    if (stickIdIsValid(mappedId)) {
-        return mappedId;
-    }
-
-    // not valid, return default mapping
-    return EVTStickAxisMap[rawID];
+    if (rawID >= 6) return 0;
+    const unsigned configured = Params::sys.storedValues.rcSticks[rawID].input;
+    // This function can be used for diagnostics even while mapping is invalid.
+    const unsigned mapped = ParamValidation::mapping(rawID, configured);
+    return mapped < 6 ? mapped : ParamValidation::defaultMapping(rawID);
 }
 
 bool Inputs::isCameraControlValid() {
     const uint8_t mask = (BIT(Io::AdcGimbalY) | BIT(Io::AdcGimbalRate));
-    return (invalidStickInputMask & mask) == 0;
+    return mappingValid && (invalidStickInputMask & mask) == 0;
 }
 
 bool Inputs::isFlightControlValid() {
     const uint8_t mask = (BIT(Io::AdcStick0) | BIT(Io::AdcStick1) | BIT(Io::AdcStick2) | BIT(Io::AdcStick3));
-    return (invalidStickInputMask & mask) == 0;
+    return mappingValid && (invalidStickInputMask & mask) == 0;
 }
 
 bool Inputs::isCameraControl(Io::StickID id) {
@@ -330,7 +327,19 @@ void Inputs::pendInvalidStickAlert(Io::AdcID id)
 void Inputs::initStickValidState()
 {
     invalidStickVals.reset();
-    invalidStickInputMask = 0;          // innocent until proven guilty
+    invalidStickInputMask = 0;
+    const Params::StoredValues &sv = Params::sys.storedValues;
+    if (!mappingValid) {
+        invalidStickInputMask = 0x3f;
+        return;
+    }
+    for (unsigned raw = 0; raw < 6; ++raw) {
+        const Params::StickCalibration &cal = sv.sticks[raw];
+        const unsigned dz = raw == Io::AdcGimbalY ? StickAxis::GimbalPitchDeadZone :
+                            raw == Io::AdcGimbalRate ? 0 : StickAxis::RcChannelDeadZone;
+        if (!ParamValidation::calibration(cal.minVal, cal.trim, cal.maxVal, dz))
+            invalidStickInputMask |= 1u << raw;
+    }
 }
 
 void Inputs::resetInvalidStickError()
@@ -339,8 +348,53 @@ void Inputs::resetInvalidStickError()
     Ui::instance.alertManager.dismissInvalidStickAlerts();
 }
 
-void Inputs::onCalibrationApplied()
+bool Inputs::applyStickParams(const Params::StickCalibration *calibration,
+                              const Params::StickConfig *configs)
 {
-    loadStickParams();
-    resetInvalidStickError();
+    // New transactions validate completely before touching live or stored state.
+    // Boot loading deliberately uses loadStickParams instead: invalid persisted
+    // maps must remain visible and lock out control until explicitly repaired.
+    if (!ParamValidation::mappings(configs)) return false;
+    if (calibration) {
+        for (unsigned raw = 0; raw < 6; ++raw) {
+            const unsigned dz = raw == Io::AdcGimbalY ? StickAxis::GimbalPitchDeadZone :
+                                raw == Io::AdcGimbalRate ? 0 : StickAxis::RcChannelDeadZone;
+            if (!ParamValidation::calibration(calibration[raw].minVal, calibration[raw].trim,
+                                             calibration[raw].maxVal, dz)) return false;
+        }
+    }
+    // Copy constructors do no floating-point work. Only the short snapshots and
+    // publication are masked; the six exponent calculations and UI work are not.
+    StickAxis prepared[] = {
+        StickAxis(Io::AdcStick0, StickAxis::Forward, 0),
+        StickAxis(Io::AdcStick1, StickAxis::Forward, 0),
+        StickAxis(Io::AdcStick2, StickAxis::Forward, 0),
+        StickAxis(Io::AdcStick3, StickAxis::Forward, 0),
+        StickAxis(Io::AdcGimbalY, StickAxis::Forward, 0),
+        StickAxis(Io::AdcGimbalRate, StickAxis::Forward, 0)
+    };
+    {
+        InterruptGuard guard;
+        for (unsigned i = 0; i < 6; ++i) prepared[i] = sticks[i];
+    }
+    const Params::StickCalibration *cal = calibration ? calibration : Params::sys.storedValues.sticks;
+    for (unsigned raw = 0; raw < 6; ++raw) {
+        const unsigned mapped = ParamValidation::mapping(raw, configs[raw].input);
+        prepared[mapped].setRawID(static_cast<Io::AdcID>(raw));
+        prepared[mapped].init(cal[raw], configs[raw], mapped);
+    }
+    {
+        InterruptGuard guard;
+        if (calibration) memcpy(Params::sys.storedValues.sticks, calibration,
+                                sizeof Params::sys.storedValues.sticks);
+        // configs may already refer to storedValues during calibration.
+        if (configs != Params::sys.storedValues.rcSticks)
+            memcpy(Params::sys.storedValues.rcSticks, configs, sizeof Params::sys.storedValues.rcSticks);
+        for (unsigned i = 0; i < 6; ++i) sticks[i] = prepared[i];
+        mappingValid = true;
+        initStickValidState();
+        Params::sys.mark();
+    }
+    Ui::instance.alertManager.dismissInvalidStickAlerts();
+    return true;
 }

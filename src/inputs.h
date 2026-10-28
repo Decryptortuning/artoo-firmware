@@ -68,7 +68,8 @@ public:
     }
 
     static void resetInvalidStickError();
-    static void onCalibrationApplied();
+    static bool applyStickParams(const Params::StickCalibration *calibration,
+                                 const Params::StickConfig *configs);
 
 private:
     static void initStickValidState();
@@ -85,6 +86,7 @@ private:
 
     static StickAxis sticks[];
 
+    static bool mappingValid;
     static bool reportRequested;
     static bool rawIoEnabled;
     static uint8_t invalidStickInputMask;

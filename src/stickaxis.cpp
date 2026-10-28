@@ -24,9 +24,9 @@ StickAxis::StickAxis(Io::AdcID id, Direction d, uint16_t _dz) :
     calibrated(false)
 {}
 
-void StickAxis::init(const Params::StickCalibration &sc, const Params::StickConfig &c)
+void StickAxis::init(const Params::StickCalibration &sc, const Params::StickConfig &c, unsigned mappedID)
 {
-    setConfig(c);
+    setConfig(c, mappedID);
     setCalibration(sc);
 }
 
@@ -62,7 +62,7 @@ void StickAxis::update(uint16_t v)
 
 void StickAxis::setCalibration(const Params::StickCalibration &sc)
 {
-    if (sc.isValid()) {
+    if (ParamValidation::calibration(sc.minVal, sc.trim, sc.maxVal, dz)) {
         minVal = sc.minVal;
         trim = sc.trim;
         maxVal = sc.maxVal;
@@ -74,23 +74,23 @@ void StickAxis::setCalibration(const Params::StickCalibration &sc)
     }
 }
 
-void StickAxis::setConfig(const Params::StickConfig &c)
+void StickAxis::setConfig(const Params::StickConfig &c, unsigned mappedID)
 {
-    setExponent((c.expo == 0xff) ? defaultExpo() : c.expo);
+    setExponent((c.expo == 0xff) ? defaultExpo(mappedID) : c.expo);
 
     if (c.direction != 0xff) {
         setDirection(c.direction ? Forward : Reverse);
     }
 }
 
-unsigned StickAxis::defaultExpo() const
+unsigned StickAxis::defaultExpo(unsigned mappedID)
 {
     /*
      * Set a default expo, per axis.
      * This will be overridden by stick config info in params.
      */
 
-    switch (Inputs::mappedStickID(rawID)) {
+    switch (mappedID) {
     case Io::StickRoll:
     case Io::StickPitch:
         return 30;
@@ -158,6 +158,8 @@ float StickAxis::angularValue() const
      *
      */
 
+    if (!calibrated) return 0.0f;
+
     float v;
     const uint16_t trimHigh = trim + dz;
     const uint16_t trimLow  = trim - dz;
@@ -187,6 +189,8 @@ float StickAxis::linearValue() const
     /*
      * Return the input as a linear value, from 0.0-1.0.
      */
+
+    if (!calibrated) return 0.5f;
 
     float v = float(lastVal - minVal) / float(maxVal - minVal);
     v = clamp(v, 0.0f, 1.0f);
