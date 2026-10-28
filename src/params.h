@@ -32,8 +32,13 @@ public:
         uint16_t trim;
         uint16_t maxVal;
 
-        ALWAYS_INLINE bool isValid() const {
-            return ParamValidation::calibration(minVal, trim, maxVal);
+        // Calibration is indexed by physical ADC input. The rate dial uses
+        // only its endpoints; its persisted trim is unused and may be any u16.
+        ALWAYS_INLINE bool isValid(Io::AdcID rawID, unsigned deadZone) const {
+            if (rawID == Io::AdcGimbalRate)
+                return minVal < maxVal && maxVal < 4096;
+            return rawID >= Io::AdcStick0 && rawID <= Io::AdcGimbalY &&
+                ParamValidation::calibration(minVal, trim, maxVal, deadZone);
         }
     };
 
@@ -71,7 +76,7 @@ public:
 
     // memory that will be persisted to/read from flash
     struct StoredValues {
-        StickCalibration sticks[6]; // ordered per Io::StickID
+        StickCalibration sticks[6]; // ordered per physical Io::AdcID
         CameraPreset presets[2];    // ordered per CameraControl::PresetID
         StickConfig rcSticks[6];    // which sticks to use for throttle, yaw, pitch, roll
         ButtonFunction::Config buttonConfigs[3];

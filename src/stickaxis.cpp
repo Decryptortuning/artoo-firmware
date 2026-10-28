@@ -62,7 +62,7 @@ void StickAxis::update(uint16_t v)
 
 void StickAxis::setCalibration(const Params::StickCalibration &sc)
 {
-    if (ParamValidation::calibration(sc.minVal, sc.trim, sc.maxVal, dz)) {
+    if (sc.isValid(rawID, dz)) {
         minVal = sc.minVal;
         trim = sc.trim;
         maxVal = sc.maxVal;
@@ -158,7 +158,9 @@ float StickAxis::angularValue() const
      *
      */
 
-    if (!calibrated) return 0.0f;
+    // A linear dial has no angular center, even if its unused trim happens
+    // to lie within the range. Keep accidental angular reads neutral.
+    if (!calibrated || rawID == Io::AdcGimbalRate) return 0.0f;
     const uint16_t value = rawValue();
 
     float v;

@@ -363,7 +363,7 @@ void Inputs::initStickValidState()
         const Params::StickCalibration &cal = sv.sticks[raw];
         const unsigned dz = raw == Io::AdcGimbalY ? StickAxis::GimbalPitchDeadZone :
                             raw == Io::AdcGimbalRate ? 0 : StickAxis::RcChannelDeadZone;
-        if (!ParamValidation::calibration(cal.minVal, cal.trim, cal.maxVal, dz))
+        if (!cal.isValid(static_cast<Io::AdcID>(raw), dz))
             invalidStickInputMask |= 1u << raw;
     }
 }
@@ -385,8 +385,7 @@ bool Inputs::applyStickParams(const Params::StickCalibration *calibration,
         for (unsigned raw = 0; raw < 6; ++raw) {
             const unsigned dz = raw == Io::AdcGimbalY ? StickAxis::GimbalPitchDeadZone :
                                 raw == Io::AdcGimbalRate ? 0 : StickAxis::RcChannelDeadZone;
-            if (!ParamValidation::calibration(calibration[raw].minVal, calibration[raw].trim,
-                                             calibration[raw].maxVal, dz)) return false;
+            if (!calibration[raw].isValid(static_cast<Io::AdcID>(raw), dz)) return false;
         }
     }
     // Copy constructors do no floating-point work. Only the short snapshots and
