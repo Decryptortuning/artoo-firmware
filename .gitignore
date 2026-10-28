@@ -21,5 +21,6 @@ src/resources-gen.h
 
 .venv/
 build-once.sh
+/tup-generate.vardict
 
 *.su
