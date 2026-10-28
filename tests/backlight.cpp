@@ -1,7 +1,7 @@
 #include "src/ili9341parallel.h"
 #include <assert.h>
 #include <stdio.h>
-volatile GPIO_t GPIOC;
+alignas(256) volatile GPIO_t GPIOC; // GPIOPin packs index into low port-address bits
 volatile TIM_t TIM3;
 int main() {
     const unsigned inputs[] = {0,30,100,101,0xffffffff};
