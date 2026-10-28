@@ -266,7 +266,7 @@ void HostProtocol::processPacket(const RxPacket &p)
     static_assert(sizeof(Params::StoredValues::rcSticks) == StickConfigBytes, "axis wire layout");
     static_assert(sizeof(Params::SweepConfig) == SweepConfigBytes, "sweep wire layout");
     static_assert(sizeof(Params::StoredValues) == 172, "persistent/host parameter layout");
-    if (p.isEmpty() || !p.ok() || !payloadLengthValid(p.data()[0], p.payloadLen())) {
+    if (p.isEmpty() || !p.ok() || !payloadValid(p.data()[0], p.data() + 1, p.payloadLen())) {
         ++stats.rejectedFrames;
         return;
     }

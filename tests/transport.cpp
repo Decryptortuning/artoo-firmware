@@ -129,6 +129,29 @@ static void rejectAndRecover()
 
 static void payloads()
 {
+    // Exact current producer path: SysInfo.cpp::ping sends ' '; the generic
+    // PacketHandler prepends ID3 and invokes this actual Linux SLIP encoder.
+    char ping[] = {HostMessage::SysInfo, ' '};
+    char encoded[16] = {};
+    SLIPEncoder linuxEncoder(encoded, sizeof encoded);
+    const int encodedLength = linuxEncoder.encode(ping, sizeof ping);
+    assert(encodedLength > 0);
+    SlipDecoder<264> artooDecoder;
+    bool completed = false;
+    for (int i = 0; i < encodedLength; ++i) {
+        if (artooDecoder.consume(static_cast<uint8_t>(encoded[i])) == SlipDecoder<264>::Complete) {
+            const PacketBuffer<264> &packet = artooDecoder.packet();
+            assert(packet.length() == 2 && packet.data()[0] == HostMessage::SysInfo);
+            assert(HostMessage::payloadValid(packet.data()[0], packet.data() + 1, packet.payloadLen()));
+            completed = true;
+        }
+    }
+    assert(completed);
+    assert(HostMessage::payloadValid(HostMessage::SysInfo, NULL, 0)); // boot updater
+    for (unsigned byte = 0; byte < 256; ++byte) {
+        const uint8_t value = byte;
+        assert(HostMessage::payloadValid(HostMessage::SysInfo, &value, 1) == (byte == ' '));
+    }
     assert(!HostMessage::payloadLengthValid(HostMessage::SetRawIo, 0));
     assert(HostMessage::payloadLengthValid(HostMessage::SetRawIo, 1));
     assert(!HostMessage::payloadLengthValid(HostMessage::SetRawIo, 2));

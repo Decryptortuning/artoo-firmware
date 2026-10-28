@@ -55,7 +55,8 @@ struct HostMessage {
 
     static bool payloadLengthValid(unsigned id, unsigned length) {
         switch (id) {
-        case Nop: case SysInfo: case ParamStoredVals: return length == 0;
+        case Nop: case ParamStoredVals: return length == 0;
+        case SysInfo: return length <= 1;
         case SetRawIo: case Updater: case LockoutState: case TestEvent:
         case SetTelemUnits: case SoloAppConnection: return length == 1;
         case Calibrate: return length == CalibrationBytes;
@@ -70,6 +71,13 @@ struct HostMessage {
         case Mavlink: return length > 0; // The frame decoder bounds the raw envelope.
         default: return false;          // Outgoing-only and unknown IDs.
         }
+    }
+
+    static bool payloadValid(unsigned id, const uint8_t *bytes, unsigned length) {
+        if (!payloadLengthValid(id, length)) return false;
+        // Direct updater queries contain only ID3. The running Linux service's
+        // SysInfo::ping() sends one literal space through PacketHandler.
+        return id != SysInfo || length == 0 || bytes[0] == ' ';
     }
 
     // Text labels may fill their wire field without a NUL. Truncate to local
