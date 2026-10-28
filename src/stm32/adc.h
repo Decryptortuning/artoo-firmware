@@ -10,7 +10,7 @@
 class Adc
 {
 public:
-    typedef void (*AdcIsr_t)();
+    typedef void (*AdcIsr_t)(bool success);
 
     enum SampleRate {
         SampleRate_1_5,     // 1.5 ADC cycles

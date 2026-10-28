@@ -44,11 +44,14 @@ void HostProtocol::init()
 
 void HostProtocol::enableTX()
 {
+    InterruptGuard guard;
+    txSchedule.enable();
     // reattach uart tx line to the uart peripheral
     GPIOPin tx = HOST_UART_TX_GPIO;
     tx.setControl(GPIOPin::OUT_ALT_50MHZ);
 
     NVIC.irqEnable(IVT.HOST_UART_DMA_TX_CH);
+    Tasks::trigger(Tasks::HostProtocol);
 }
 
 void HostProtocol::disableTX()
@@ -61,6 +64,9 @@ void HostProtocol::disableTX()
      * Set TX line to hi-z, but leave RX line enabled.
      */
 
+    InterruptGuard guard;
+    uart.cancelTx();
+    txSchedule.disable();
     NVIC.irqDisable(IVT.HOST_UART_DMA_TX_CH);
 
     GPIOPin tx = HOST_UART_TX_GPIO;
@@ -69,33 +75,14 @@ void HostProtocol::disableTX()
 
     firstMsgRxed = false;
 
-    rxDecoder.reset();
-    rxResetPending = false;
+    rxResetPending = true;
 }
 
 void HostProtocol::requestTransaction()
 {
-    /*
-     * Ask for producePacket() to be called once.
-     *
-     * If a transaction is already in progress, producePacket()
-     * gets called again when it's complete, so all sources
-     * will eventually get served.
-     */
-
-    if (!uart.enabled()) {
-        return;
-    }
-
-    // critical section
-    NVIC.irqDisable(IVT.HOST_UART_DMA_TX_CH);
-
-    if (!txPending) {
-        producePacket();
-    }
-
-    // end critical section
-    NVIC.irqEnable(IVT.HOST_UART_DMA_TX_CH);
+    // Producers may request from ISR context, but packet construction and DMA
+    // buffer ownership belong exclusively to the foreground protocol task.
+    Tasks::trigger(Tasks::HostProtocol);
 }
 
 void HostProtocol::producePacket()
@@ -103,20 +90,18 @@ void HostProtocol::producePacket()
     /*
      * Produce a packet to send to the host.
      *
-     * Gets called again from the completion handler,
-     * so we'll keep producing packets until none of
-     * our sources has one to send.
+     * Called only from task(); DMA completion merely requests another turn.
      */
 
     txPacket.reset();
 
     if (dispatchProduce() && txPacket.ok() && !txPacket.isEmpty()) {
-        txPending = true;
+        txSchedule.start();
         uart.writeDma(txPacket.data(), txPacket.length());
         stats.txBytes += txPacket.length();
     } else {
         if (!txPacket.ok()) ++stats.txRejected;
-        txPending = false;
+        txSchedule.complete();
     }
 }
 
@@ -193,14 +178,12 @@ bool HostProtocol::produceHostProtocolPacket(Packet &p)
     return true;
 }
 
-void HostProtocol::onTxComplete()
+void HostProtocol::onTxComplete(bool success)
 {
-    /*
-     * DMA transmission has completed.
-     * Try to produce another one if possible.
-     */
-
-    instance.producePacket();
+    if (!success) ++instance.stats.txErrors;
+    // A failed packet is dropped, never retried (it may contain a flight command).
+    instance.txSchedule.complete();
+    Tasks::trigger(Tasks::HostProtocol);
 }
 
 IRQ_HANDLER ISR_USART1()
@@ -217,7 +200,7 @@ void HostProtocol::isr()
         rxResetPending = true;
         stats.overruns++;
 
-    } else if (status & (Usart::SR_NOISE_ERR | Usart::SR_FRAMING_ERR)) {
+    } else if (status & (Usart::SR_PARITY_ERR | Usart::SR_NOISE_ERR | Usart::SR_FRAMING_ERR)) {
         // NE and FE show up at the same time as RXNE,
         // so check those first, and only accept byte if they're clear
         rxResetPending = true;
@@ -232,20 +215,20 @@ void HostProtocol::isr()
             rxResetPending = true;
         }
     }
+    if (rxResetPending) Tasks::trigger(Tasks::HostProtocol);
 }
 
 void HostProtocol::task()
 {
-    while (!rxbuf.empty() || rxResetPending) {
+    unsigned budget = 256; // bound one invocation even under continuous RX
+    while (budget-- && (!rxbuf.empty() || rxResetPending)) {
         if (rxResetPending) {
             // All queued bytes may straddle the lost byte. Drop that queue as
             // one unit, then require a fresh delimiter before accepting data.
-            const bool enabled = NVIC.irqIsEnabled(IVT.HOST_UART);
-            NVIC.irqDisable(IVT.HOST_UART);
+            InterruptGuard guard;
             rxbuf.init();
             rxDecoder.reset();
             rxResetPending = false;
-            if (enabled) NVIC.irqEnable(IVT.HOST_UART);
             ++stats.rejectedFrames;
             continue;
         }
@@ -258,6 +241,8 @@ void HostProtocol::task()
             ++stats.rejectedFrames;
         }
     }
+    if (!rxbuf.empty() || rxResetPending) Tasks::trigger(Tasks::HostProtocol);
+    if (txSchedule.ready() && uart.enabled()) producePacket();
 }
 
 void HostProtocol::processPacket(const RxPacket &p)

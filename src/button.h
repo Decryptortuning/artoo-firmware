@@ -49,12 +49,14 @@ public:
         return releaseTimestamp;
     }
 
-    bool ALWAYS_INLINE isPressed() const {
+    bool ALWAYS_INLINE physicallyPressed() const {
         if (polarity == ActiveHigh) {
             return pin.isHigh();
         }
         return pin.isLow();
     }
+
+    bool isPressed() const { return pressed; }
 
     bool isHeldShort() const {
         return shortHoldFlagSet() && isPressed();
@@ -174,8 +176,10 @@ public:
         pin.irqDisable();
     }
 
-    // only intended to be called by Inputs
-    bool isr();
+    // Capture is ISR-only; gesture handling/resynchronization is foreground.
+    bool captureEdge(bool &pressed, SysTime::Ticks &timestamp);
+    void handleEdge(bool pressed, SysTime::Ticks timestamp);
+    void resynchronize(SysTime::Ticks timestamp);
     void pollForHold();
 
 private:
@@ -196,6 +200,8 @@ private:
 
     const Io::ButtonID btnid;
 
+    bool pressed;
+    bool quarantined;
     SysTime::Ticks pressTimestamp;
     SysTime::Ticks releaseTimestamp;
     uint32_t reportedEvents;    // bitmap of ReportedEventID

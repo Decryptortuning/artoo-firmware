@@ -143,13 +143,13 @@ void Usart::dmaTXCallback(void *p, uint8_t flags)
      * static handler for DMA TX events.
      */
 
-    (void)flags;
+    if (!Dma::terminal(flags)) return;
 
     Usart *u = static_cast<Usart*>(p);
     u->dmaTxChan->CCR = 0;
 
     if (u->txCompletionCB) {
-        u->txCompletionCB();
+        u->txCompletionCB(Dma::succeeded(flags));
     }
 }
 
@@ -159,13 +159,13 @@ void Usart::dmaRXCallback(void *p, uint8_t flags)
      * static handler for DMA RX events.
      */
 
-    (void)flags;
+    if (!Dma::terminal(flags)) return;
 
     Usart *u = static_cast<Usart*>(p);
     u->dmaRxChan->CCR = 0;
 
     if (u->rxCompletionCB) {
-        u->rxCompletionCB();
+        u->rxCompletionCB(Dma::succeeded(flags));
     }
 }
 
@@ -207,6 +207,11 @@ void Usart::writeHexBytes(const void *data, int size)
         bytes++;
         size--;
     }
+}
+
+void Usart::cancelTx()
+{
+    Dma::cancel(dmaTxChan);
 }
 
 void Usart::writeDma(const uint8_t *buf, unsigned len)

@@ -6,6 +6,7 @@
 #if (BOARD >= BOARD_BB03)
 
 #include "stm32/common.h"
+#include "stm32/irqguard.h"
 #include "stm32/gpio.h"
 #include "movingavgfilter.h"
 
@@ -22,14 +23,17 @@ public:
 
     void init();
     void prepToSample();
+    void task();
     void onChgDetectChanged();
     void onCellSamples(uint16_t bottom, uint16_t top, uint16_t therm, uint16_t packID);
 
     bool isInitialized() const {
+        InterruptGuard guard;
         return battLevel != -1U;
     }
 
     unsigned level() const {
+        InterruptGuard guard;
         if (!batteryIsPresent()) {
             return 0;
         }
@@ -54,6 +58,7 @@ public:
     }
 
     bool batteryIsPresent() const {
+        InterruptGuard guard;
         return thermal < DISCONN_THRESH && id < DISCONN_THRESH;
     }
 
@@ -149,6 +154,7 @@ private:
     bool chgPresentState;
 
     bool thermalChgLockout;
+    bool levelNotificationPending;
 
     static const PackID PackIdValues[];
     static const uint16_t GenericLiIonDischargeCurve[];

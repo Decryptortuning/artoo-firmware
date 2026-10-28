@@ -24,6 +24,7 @@ public:
         Forward = 1
     };
 
+    StickAxis() : StickAxis(Io::AdcStick0, Forward, 0) {}
     StickAxis(Io::AdcID id, Direction d, uint16_t _dz);
 
     void init(const Params::StickCalibration &sc, const Params::StickConfig &c, unsigned mappedID);
@@ -56,7 +57,7 @@ public:
     }
 
     uint16_t ALWAYS_INLINE rawValue() const {
-        return lastVal;
+        return __atomic_load_n(&lastVal, __ATOMIC_ACQUIRE);
     }
 
     float angularValue() const;

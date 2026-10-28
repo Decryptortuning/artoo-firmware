@@ -38,14 +38,14 @@ void StickAxis::update(uint16_t v)
 
     if (calibrated) {
         if (valueIsAcceptable(v)) {
-            lastVal = v;
+            __atomic_store_n(&lastVal, v, __ATOMIC_RELEASE);
         } else {
             // alert the app of the stick input value discrepancy
             Inputs::onInvalidStickInput(rawID, v, trim, minVal, maxVal);
         }
     } else {
         // not calibrated, adjust extremes based on observed values
-        lastVal = v;
+        __atomic_store_n(&lastVal, v, __ATOMIC_RELEASE);
 
         if (v < minVal) {
             minVal = v;
@@ -159,16 +159,17 @@ float StickAxis::angularValue() const
      */
 
     if (!calibrated) return 0.0f;
+    const uint16_t value = rawValue();
 
     float v;
     const uint16_t trimHigh = trim + dz;
     const uint16_t trimLow  = trim - dz;
 
-    if (lastVal > trimHigh) {
-        v = (float)(lastVal - trimHigh) / (float)(maxVal - trimHigh);
+    if (value > trimHigh) {
+        v = (float)(value - trimHigh) / (float)(maxVal - trimHigh);
 
-    } else if (lastVal < trimLow) {
-        v = -((float)(trimLow - lastVal)) / (float)(trimLow - minVal);
+    } else if (value < trimLow) {
+        v = -((float)(trimLow - value)) / (float)(trimLow - minVal);
 
     } else {
         // we're in the dead zone
@@ -191,8 +192,9 @@ float StickAxis::linearValue() const
      */
 
     if (!calibrated) return 0.5f;
+    const uint16_t value = rawValue();
 
-    float v = float(lastVal - minVal) / float(maxVal - minVal);
+    float v = float(value - minVal) / float(maxVal - minVal);
     v = clamp(v, 0.0f, 1.0f);
 
     if (dir == Forward) {

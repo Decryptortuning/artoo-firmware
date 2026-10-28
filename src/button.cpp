@@ -8,6 +8,7 @@ Button::Button(GPIOPin p, GPIOPin active, GPIOPin backlight, Io::ButtonID bid, P
     backlightPin(backlight),
     polarity(pol),
     btnid(bid),
+    pressed(false), quarantined(false),
     pressTimestamp(0),
     releaseTimestamp(0),
     reportedEvents(0)
@@ -22,6 +23,8 @@ void Button::init(bool enableIsr)
     } else {
         pin.pulldown();
     }
+
+    pressed = physicallyPressed();
 
     if (enableIsr) {
         pin.irqInit();
@@ -41,22 +44,33 @@ void Button::init(bool enableIsr)
     }
 }
 
-bool Button::isr()
+bool Button::captureEdge(bool &value, SysTime::Ticks &timestamp)
 {
-    /*
-     * An edge has been detected.
-     * Not doing any debounce here - TBD if we'll need to.
-     *
-     * Called in ISR context.
-     */
-
-    if (!pin.irqPending()) {
-        return false;
-    }
-
+    if (!pin.irqPending()) return false;
     pin.irqAcknowledge();
+    value = physicallyPressed();
+    timestamp = SysTime::now();
+    return true;
+}
 
-    SysTime::Ticks now = SysTime::now();
+void Button::resynchronize(SysTime::Ticks timestamp)
+{
+    pressed = physicallyPressed();
+    pressTimestamp = releaseTimestamp = timestamp;
+    reportedEvents = SuppressHold;
+    quarantined = pressed;
+}
+
+void Button::handleEdge(bool value, SysTime::Ticks now)
+{
+    // Foreground owns gesture state. Preserve captured edge time even when the
+    // task was delayed. After queue loss, require release before a new gesture.
+    if (pressed == value) return;
+    pressed = value;
+    if (quarantined) {
+        if (!pressed) { releaseTimestamp = now; quarantined = false; }
+        return;
+    }
 
     if (isPressed()) {
 
@@ -83,7 +97,6 @@ bool Button::isr()
         }
     }
 
-    return true;
 }
 
 SysTime::Ticks Button::pressDuration() const

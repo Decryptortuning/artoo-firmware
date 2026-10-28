@@ -23,6 +23,10 @@ public:
         Error           = (1 << 3)
     };
 
+    static bool terminal(uint8_t flags) { return flags & (Complete | Error); }
+    static bool succeeded(uint8_t flags) { return (flags & Complete) && !(flags & Error); }
+    static void cancel(volatile DMAChannel_t *channel);
+
     static volatile DMAChannel_t * initChannel(volatile DMA_t *dma, int channel, DmaIsr_t func, void *param);
     static void deinitChannel(volatile DMA_t *dma, int channel);
 

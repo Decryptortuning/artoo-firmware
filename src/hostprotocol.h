@@ -7,6 +7,7 @@
 #include "hostmessage.h"
 #include "slipdecoder.h"
 #include "ringbuffer.h"
+#include "txschedule.h"
 #include "stm32/usart.h"
 #include "stm32/vectors.h"
 
@@ -17,7 +18,7 @@ class HostProtocol : public HostMessage
 public:
     HostProtocol(Usart u) :
         uart(u),
-        txPending(false),
+        txSchedule(),
         txPacket(), rxDecoder(),
         rxbuf(),
         stats(),
@@ -62,10 +63,10 @@ private:
     void isr();
     friend void ISR_USART1();
 
-    static void onTxComplete();
+    static void onTxComplete(bool success);
 
     Usart uart;
-    volatile bool txPending;
+    TxSchedule txSchedule;
 
     Packet txPacket;
     SlipDecoder<RawCapacity> rxDecoder;
@@ -80,6 +81,7 @@ private:
         uint32_t lineErrors;
         uint32_t rejectedFrames;
         uint32_t txRejected;
+        uint32_t txErrors;
     } stats;
 
     volatile bool rxResetPending;

@@ -14,6 +14,9 @@
 #include "stm32/hwtimer.h"
 
 uint16_t ButtonManager::buttonPressMask;
+RingBuffer<32, ButtonManager::Edge> ButtonManager::edges;
+bool ButtonManager::edgeOverflow;
+uint32_t ButtonManager::droppedEdges;
 
 // must match order of ButtonID
 Button ButtonManager::buttons[] = {
@@ -46,6 +49,9 @@ void ButtonManager::init()
     buttons[Io::ButtonPreset1].init(true);
     buttons[Io::ButtonPreset2].init(true);
     buttons[Io::ButtonCameraClick].init(true);
+    buttonPressMask = 0;
+    for (unsigned i = 0; i < arraysize(buttons); ++i)
+        if (buttons[i].isPressed()) buttonPressMask |= 1u << i;
 
 
     ////////////////////////////////////
@@ -122,54 +128,57 @@ void ButtonManager::setBacklight(unsigned percent)
 
 void ButtonManager::isr(Io::ButtonID id)
 {
-    /*
-     * An edge has been detected on a button input, in ISR context.
-     *
-     * 1. allow the button to do its housekeeping in isr()
-     * 2. update our mask of pressed buttons
-     * 3. dispatch events for individual buttons as appropriate.
-     */
-
-    Button &b = buttons[id];
-    if (b.isPressed()) {
-        buttonPressMask |= (1 << id);
-    } else {
-        buttonPressMask &= ~(1 << id);
+    InterruptGuard guard; // serialize different EXTI producers
+    Edge edge;
+    edge.id = id;
+    if (!buttons[id].captureEdge(edge.pressed, edge.time)) return;
+    if (edgeOverflow || !edges.enqueue(edge)) {
+        edgeOverflow = true;
+        ++droppedEdges;
     }
-
-    if (!b.isr()) {
-        return;
-    }
-
-    if (buttonPressMask) {
-        Tasks::trigger(Tasks::ButtonHold);
-    }
+    Tasks::trigger(Tasks::ButtonHold);
 }
 
 void ButtonManager::task()
 {
-    /*
-     * Called periodically once a button is being pressed
-     * to determine if it has been held long enough to be
-     * considered a hold.
-     *
-     * Called from heartbeat ISR context.
-     */
-
-    // latch a single copy as buttonPressMask may continue to
-    // be modified in ISRs
-    uint16_t pressMask = buttonPressMask;
-
-    for (unsigned i = 0; pressMask && i < arraysize(buttons); ++i, pressMask >>= 1) {
-        if (pressMask & 0x01) {
-            buttons[i].pollForHold();
+    // Only foreground dispatches application callbacks or mutates gestures.
+    // A lost edge invalidates the whole queued history. Reconcile physical
+    // levels and suppress held gestures until release, rather than synthesizing
+    // click/hold commands from an incomplete history.
+    {
+        InterruptGuard guard;
+        if (edgeOverflow) {
+            edges.init();
+            edgeOverflow = false;
+            buttonPressMask = 0;
+            const SysTime::Ticks now = SysTime::now();
+            for (unsigned i = 0; i < arraysize(buttons); ++i) {
+                buttons[i].resynchronize(now);
+                if (buttons[i].isPressed()) buttonPressMask |= 1u << i;
+            }
         }
     }
-
-    // buttons still pressed? re-schedule ourselves
-    if (buttonPressMask) {
-        Tasks::trigger(Tasks::ButtonHold);
+    unsigned budget = 31;
+    while (budget--) {
+        Edge edge;
+        {
+            InterruptGuard guard;
+            if (edgeOverflow || edges.empty()) break;
+            edge = edges.dequeue();
+        }
+        if (edge.pressed) buttonPressMask |= 1u << edge.id;
+        else buttonPressMask &= ~(1u << edge.id);
+        buttons[edge.id].handleEdge(edge.pressed, edge.time);
     }
+    if (!edges.empty() || edgeOverflow) {
+        Tasks::trigger(Tasks::ButtonHold);
+        return; // process captured edges before deriving any hold events
+    }
+    for (unsigned i = 0; i < arraysize(buttons); ++i) {
+        if (buttonPressMask & (1u << i)) buttons[i].pollForHold();
+    }
+    // Held-button checks run on the existing 50 Hz heartbeat, avoiding a busy
+    // task loop. Threshold constants and captured-edge release timing remain.
 }
 
 void ButtonManager::dispatchEvt(Button *b, Button::Event evt)

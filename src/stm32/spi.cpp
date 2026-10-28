@@ -182,16 +182,12 @@ void SPIMaster::txDma(const uint8_t *txbuf, unsigned len)
 */
 void SPIMaster::dmaCallback(void *p, uint8_t flags)
 {
+    if (!Dma::terminal(flags)) return;
     SPIMaster *spi = static_cast<SPIMaster*>(p);
 
     // disable DMA channels
     spi->dmaTxChan->CCR = 0;
     spi->dmaRxChan->CCR = 0;
-
-    // error check: test this DMA channel's TEIF bit
-    if (flags & (1 << 3)) {
-//        UART("spi/dma error\r\n");
-    }
 
     // if this transfer was TX only our RX data register likely has an overrun error.
     // we need to read a dummy element out of the data register
@@ -202,6 +198,6 @@ void SPIMaster::dmaCallback(void *p, uint8_t flags)
     }
 
     if (spi->completionCB) {
-        spi->completionCB();
+        spi->completionCB(Dma::succeeded(flags));
     }
 }

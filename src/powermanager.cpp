@@ -114,7 +114,7 @@ void PowerManager::waitForCompleteStartup()
         drawn = true;
     }
 
-    while (SysTime::now() < BatteryCheckInterval || btn.isPressed()) {
+    while (SysTime::now() < BatteryCheckInterval || btn.physicallyPressed()) {
 
         /*
          * if the imx6 has somehow booted and is already sending us uart traffic,
@@ -145,7 +145,7 @@ void PowerManager::waitForCompleteStartup()
             drawn = true;
         }
 
-        Sys::waitForInterrupt();
+        if (!Tasks::work()) Sys::waitForInterrupt();
     }
 
     shutdown();

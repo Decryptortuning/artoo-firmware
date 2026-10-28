@@ -64,6 +64,7 @@ public:
     };
 
     static bool stickValueInvalid(Io::AdcID i) {
+        InterruptGuard guard;
         return (invalidStickInputMask >> i) & 1;
     }
 
@@ -79,14 +80,16 @@ private:
     }
 
     static Adc Adc1;
-    static void adcConversionComplete();
+    static void adcConversionComplete(bool success);
     static uint16_t adcSamples[Io::AdcCount];
+    static uint16_t completedSamples[Io::AdcCount];
 
     static void initADC();
 
     static StickAxis sticks[];
 
     static bool mappingValid;
+    static bool captureFault;
     static bool reportRequested;
     static bool rawIoEnabled;
     static uint8_t invalidStickInputMask;

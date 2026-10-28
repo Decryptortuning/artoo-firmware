@@ -15,6 +15,8 @@
  * A and B buttons on channels 6 and 7.
  */
 
+class StickAxis;
+
 class Dsm
 {
 public:
@@ -25,7 +27,7 @@ public:
     void init();
     void onLoiterButtonEvt(Button *b, Button::Event evt);
 
-    void producePacket(HostProtocol::Packet &pkt);
+    void producePacket(HostProtocol::Packet &pkt, const StickAxis *axes, uint8_t invalidMask);
 
 private:
 

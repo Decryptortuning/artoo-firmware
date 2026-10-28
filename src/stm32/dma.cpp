@@ -12,8 +12,22 @@ uint32_t Dma::Ch2Mask = 0;
 Dma::DmaHandler_t Dma::Ch1Handlers[7];
 Dma::DmaHandler_t Dma::Ch2Handlers[5];
 
+void Dma::cancel(volatile DMAChannel_t *channel)
+{
+    if (!channel) return;
+    channel->CCR = 0;
+    for (unsigned i = 0; i < 7; ++i) {
+        if (channel == &DMA1.channels[i]) { DMA1.IFCR = 0xfu << (i * 4); return; }
+    }
+    for (unsigned i = 0; i < 5; ++i) {
+        if (channel == &DMA2.channels[i]) { DMA2.IFCR = 0xfu << (i * 4); return; }
+    }
+}
+
 volatile DMAChannel_t * Dma::initChannel(volatile DMA_t *dma, int channel, DmaIsr_t func, void *param)
 {
+    if (!func || channel < 0 || (dma != &DMA1 && dma != &DMA2) ||
+        channel >= (dma == &DMA1 ? 7 : 5)) return 0;
     if (dma == &DMA1) {
 
         if (Ch1Mask == 0) {
@@ -60,6 +74,9 @@ volatile DMAChannel_t * Dma::initChannel(volatile DMA_t *dma, int channel, DmaIs
 */
 void Dma::deinitChannel(volatile DMA_t *dma, int channel)
 {
+    if (channel < 0 || (dma != &DMA1 && dma != &DMA2) ||
+        channel >= (dma == &DMA1 ? 7 : 5)) return;
+    cancel(&dma->channels[channel]);
     if (dma == &DMA1) {
 
         Ch1Mask &= ~(1 << channel); // mark it as disabled
@@ -91,7 +108,7 @@ void Dma::serveIsr(volatile DMA_t *dma, int ch, DmaHandler_t &handler)
 {
     uint32_t flags = (dma->ISR >> (ch * 4)) & 0xF;  // only bottom 4 bits are relevant to a single channel
     dma->IFCR = 1 << (ch * 4); // set the CGIFx bit to clear the whole channel
-    if (handler.isrfunc) {
+    if (flags && handler.isrfunc) {
         handler.isrfunc(handler.param, flags);
     }
 }
@@ -156,4 +173,5 @@ IRQ_HANDLER ISR_DMA2_Channel3()
 IRQ_HANDLER ISR_DMA2_Channel4_5()
 {
     Dma::serveIsr(&DMA2, 3, Dma::Ch2Handlers[3]);
+    Dma::serveIsr(&DMA2, 4, Dma::Ch2Handlers[4]);
 }

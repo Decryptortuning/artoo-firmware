@@ -21,7 +21,8 @@ Battery::Battery() :
     battLevelStableCount(0),
     sampleCount(COUNTER_SAMPLE_ENABLED - 1),
     chgPresentState(false),
-    thermalChgLockout(false)
+    thermalChgLockout(false),
+    levelNotificationPending(false)
 {
 }
 
@@ -58,6 +59,7 @@ void Battery::init()
 
 void Battery::prepToSample()
 {
+    InterruptGuard guard; // sampleCount is reset by the ADC ISR
     /*
      * Called from our 50Hz update loop,
      * prior to an ADC sample being kicked off.
@@ -191,31 +193,42 @@ void Battery::updateBattLevel(unsigned lvl)
     // propogate new battery level a single time after battery level has settled
     if (battLevelStableCount == MIN_STABLE_COUNT) {
         battLevel = movingAvgBattLevel;
-        onLevelChanged(battLevel);
+        __atomic_store_n(&levelNotificationPending, true, __ATOMIC_RELEASE);
         return;
     }
 
     // update battery level when the moving average deviates by a significant amount from the previously latched battery level or if the new battery level reaches zero
     if (Intrinsic::abs(static_cast<int>(movingAvgBattLevel) - static_cast<int>(battLevel)) >= MIN_LVL_DIFF_TO_UPDATE || (!movingAvgBattLevel && battLevel)) {
         battLevel = movingAvgBattLevel;
-        onLevelChanged(battLevel);
+        __atomic_store_n(&levelNotificationPending, true, __ATOMIC_RELEASE);
+    }
+}
+
+void Battery::task()
+{
+    if (__atomic_exchange_n(&levelNotificationPending, false, __ATOMIC_ACQ_REL)) {
+        unsigned level;
+        { InterruptGuard guard; level = battLevel; }
+        onLevelChanged(level);
     }
 }
 
 void Battery::onLevelChanged(unsigned lvl)
 {
     /*
-     * Called in ISR context when our battery level has changed.
+     * Called in foreground after the ISR publishes a new battery level.
      *
      * Notify UI as appropriate.
      */
 
+    const unsigned currentUiLevel = scale(clamp(lvl, UI_BATT_LVL_OFFSET, 100U),
+                                          UI_BATT_LVL_OFFSET, 100U, 0U, 100U);
     Ui & ui = Ui::instance;
     ui.pendEvent(Event::ArtooBatteryChanged);
 
     // pend a lockout alert if controller battery reaches low and failsafe levels
     if (!chargerIsPresent()) {
-        if (uiLevel() <= FAILSAFE_PERCENT) {
+        if (currentUiLevel <= FAILSAFE_PERCENT) {
             const Telemetry & telemVals = FlightManager::instance.telemVals();
             if (telemVals.hasGpsFix()) {
                 ui.pendEvent(Event::ControllerBatteryFailsafe);
@@ -225,7 +238,7 @@ void Battery::onLevelChanged(unsigned lvl)
             return;
         }
 
-        if (uiLevel() <= CRITICALLY_LOW_PERCENT) {
+        if (currentUiLevel <= CRITICALLY_LOW_PERCENT) {
             ui.pendEvent(Event::ControllerBatteryCritical);
             return;
         }

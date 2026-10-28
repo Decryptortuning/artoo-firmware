@@ -31,14 +31,14 @@ void Dsm::onLoiterButtonEvt(Button *b, Button::Event evt)
     }
 }
 
-void Dsm::producePacket(HostProtocol::Packet &pkt)
+void Dsm::producePacket(HostProtocol::Packet &pkt, const StickAxis *axes, uint8_t invalidMask)
 {
     pkt.delimitSlip();
     pkt.appendSlip(HostProtocol::DsmChannels);
 
     // first 4 channels are stick axes
     for (unsigned i = 0; i < 4; ++i) {
-        const StickAxis & stick = Inputs::stick(Io::StickID(i));
+        const StickAxis & stick = axes[i];
         channels[i] = stick.angularPPMValue();
 #if 0
         // (not used currently) Send partial vehicle control (assisted landing with broken stick for advanced users)
@@ -51,8 +51,8 @@ void Dsm::producePacket(HostProtocol::Packet &pkt)
     }
 
     // TODO: vehicle does not have explicit knowledge when receiving this information that the sticks are invalid, app and Artoo do
-    const StickAxis & stickGimbalY = Inputs::stick(Io::StickGimbalY);
-    if (stickGimbalY.hasInvalidInput()) {
+    const StickAxis & stickGimbalY = axes[Io::StickGimbalY];
+    if (invalidMask & (1u << Io::AdcGimbalY)) {
         channels[DsmCh6] = CameraControl::instance.targetPositionDefault();
         channels[DsmCh8] = stickGimbalY.scaledAngularDefault();
     } else {

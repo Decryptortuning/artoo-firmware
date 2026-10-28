@@ -154,6 +154,7 @@ void Adc::dmaCallback(void *p, uint8_t flags)
      * static dispatcher for all ADC DMA callbacks.
      */
 
+    if (!Dma::terminal(flags)) return;
     Adc *adc = static_cast<Adc*>(p);
 
     // clear STRT - does not auto-clear
@@ -162,11 +163,7 @@ void Adc::dmaCallback(void *p, uint8_t flags)
     // disable dma channel
     adc->dmaChan->CCR = 0;
 
-    if (flags) {
-        // handle errors
-    }
-
     if (adc->completionCB) {
-        adc->completionCB();
+        adc->completionCB(Dma::succeeded(flags));
     }
 }

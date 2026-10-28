@@ -48,6 +48,14 @@ private:
         };
     };
 
+    struct Edge {
+        SysTime::Ticks time;
+        uint8_t id;
+        bool pressed;
+    };
+    static RingBuffer<32, Edge> edges;
+    static bool edgeOverflow;
+    static uint32_t droppedEdges;
     static Button buttons[];
     static uint16_t buttonPressMask;    // buttons currently being pressed
 

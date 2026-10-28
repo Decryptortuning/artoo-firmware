@@ -47,7 +47,7 @@ public:
         Cr_SBK      = (1 << 1),
     };
 
-    typedef void (*CompletionCallback)();
+    typedef void (*CompletionCallback)(bool success);
 
     Usart(volatile USART_t *hw, CompletionCallback txCB = 0, CompletionCallback rxCB = 0)
         : uart(hw),
@@ -69,6 +69,7 @@ public:
     void read(uint8_t *buf, int size);
 
     void writeDma(const uint8_t *buf, unsigned len);
+    void cancelTx();
     void readDma(const uint8_t *buf, unsigned len);
 
     void put(char c);

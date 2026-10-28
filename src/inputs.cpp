@@ -11,10 +11,12 @@
 Adc Inputs::Adc1(&ADC1, Inputs::adcConversionComplete);
 
 uint16_t Inputs::adcSamples[];
+uint16_t Inputs::completedSamples[];
 Inputs::InvalidStickValues Inputs::invalidStickVals;
 SysTime::Ticks Inputs::alertStateEnterTimestamp;
 
 bool Inputs::mappingValid;
+bool Inputs::captureFault;
 bool Inputs::reportRequested;
 bool Inputs::rawIoEnabled;
 uint8_t Inputs::invalidStickInputMask;
@@ -33,8 +35,9 @@ void Inputs::init()
 {
     Dsm::instance.init();
     initADC();
-    beginAdcCapture();
     initStickValidState();
+    captureFault = true;
+    beginAdcCapture();
 }
 
 void Inputs::initADC()
@@ -82,7 +85,6 @@ void Inputs::initADC()
     }
 
     loadStickParams();
-    beginAdcCapture();
 }
 
 void Inputs::loadStickParams()
@@ -105,12 +107,20 @@ void Inputs::loadStickParams()
     }
 }
 
-void Inputs::adcConversionComplete()
+void Inputs::adcConversionComplete(bool success)
 {
     /*
      * Called in ISR context.
      */
 
+    captureFault = !success;
+    if (!success) {
+        // Never consume partially DMA-written samples as a valid control frame.
+        // Restart acquisition; control validity remains false until completion.
+        beginAdcCapture();
+        return;
+    }
+    memcpy(completedSamples, adcSamples, sizeof completedSamples);
     static const unsigned NUM_RC_STICKS = 4;
 
     if (mappingValid) {
@@ -164,9 +174,21 @@ bool Inputs::producePacket(HostProtocol::Packet &pkt)
 
     reportRequested = false;
 
+    StickAxis axes[6];
+    uint16_t rawSamples[Io::AdcCount];
+    uint8_t invalidMask;
+    bool validMapping;
+    {
+        InterruptGuard guard;
+        for (unsigned i = 0; i < 6; ++i) axes[i] = sticks[i];
+        memcpy(rawSamples, completedSamples, sizeof rawSamples);
+        invalidMask = invalidStickInputMask;
+        validMapping = mappingValid && !captureFault;
+    }
+
     // RC channels to be forwarded to the vehicle, don't send any values (to trigger RCFailsafe) if getting any invalid values from flight sticks
-    if (isFlightControlValid()) {
-        Dsm::instance.producePacket(pkt);
+    if (validMapping && !(invalidMask & 0x0f)) {
+        Dsm::instance.producePacket(pkt, axes, invalidMask);
     }
 
     // additional inputs that 3rd parties may be interested in
@@ -174,8 +196,8 @@ bool Inputs::producePacket(HostProtocol::Packet &pkt)
 
     pkt.delimitSlip();
     pkt.appendSlip(HostProtocol::InputReport);
-    pkt.appendItemSlip(sticks[Io::StickGimbalY].scaledAngularValue());
-    pkt.appendItemSlip(sticks[Io::StickGimbalRate].scaledLinearValue());
+    pkt.appendItemSlip(axes[Io::StickGimbalY].scaledAngularValue());
+    pkt.appendItemSlip(axes[Io::StickGimbalRate].scaledLinearValue());
     pkt.appendItemSlip(batt);
     pkt.delimitSlip();
 
@@ -183,7 +205,7 @@ bool Inputs::producePacket(HostProtocol::Packet &pkt)
     if (rawIoEnabled) {
         pkt.delimitSlip();
         pkt.appendSlip(HostProtocol::RawIoReport);
-        pkt.appendSlip(adcSamples, sizeof(adcSamples));
+        pkt.appendSlip(rawSamples, sizeof rawSamples);
         uint16_t buttonMask = ButtonManager::pressMask();
         pkt.appendSlip(&buttonMask, sizeof(buttonMask));
         pkt.delimitSlip();
@@ -202,20 +224,21 @@ bool Inputs::InvalidStickValues::producePacket(HostProtocol::Packet &pkt)
      * invalid stick readings as long as they remain invalid.
      */
 
-    if (!invalidStickVals.isSet) {
-        return false;
+    InvalidStickValues snapshot;
+    {
+        InterruptGuard guard;
+        if (!isSet) return false;
+        snapshot = *this;
+        reset();
     }
-
     pkt.delimitSlip();
     pkt.appendSlip(HostProtocol::InvalidStickInputs);
-    pkt.appendItemSlip(rawID);
-    pkt.appendItemSlip(inputVal);
-    pkt.appendItemSlip(trimVal);
-    pkt.appendItemSlip(minVal);
-    pkt.appendItemSlip(maxVal);
+    pkt.appendItemSlip(snapshot.rawID);
+    pkt.appendItemSlip(snapshot.inputVal);
+    pkt.appendItemSlip(snapshot.trimVal);
+    pkt.appendItemSlip(snapshot.minVal);
+    pkt.appendItemSlip(snapshot.maxVal);
     pkt.delimitSlip();
-
-    reset();
 
     return true;
 }
@@ -241,14 +264,15 @@ void Inputs::onInvalidStickInput(Io::AdcID rawID, uint16_t inputVal, uint16_t tr
 
 void Inputs::InvalidStickValues::latch(Io::AdcID adcID, uint16_t v, uint16_t trim, uint16_t min, uint16_t max)
 {
+    InterruptGuard guard;
     if (!isSet) {
-        isSet = true;
         rawID = adcID;
         mappedID = static_cast<uint8_t>(mappedStickID(adcID));
         inputVal = v;
         trimVal = trim;
         minVal = min;
         maxVal = max;
+        isSet = true;
     }
 }
 
@@ -288,13 +312,15 @@ unsigned Inputs::mappedStickID(unsigned rawID)
 }
 
 bool Inputs::isCameraControlValid() {
+    InterruptGuard guard;
     const uint8_t mask = (BIT(Io::AdcGimbalY) | BIT(Io::AdcGimbalRate));
-    return mappingValid && (invalidStickInputMask & mask) == 0;
+    return !captureFault && mappingValid && (invalidStickInputMask & mask) == 0;
 }
 
 bool Inputs::isFlightControlValid() {
+    InterruptGuard guard;
     const uint8_t mask = (BIT(Io::AdcStick0) | BIT(Io::AdcStick1) | BIT(Io::AdcStick2) | BIT(Io::AdcStick3));
-    return mappingValid && (invalidStickInputMask & mask) == 0;
+    return !captureFault && mappingValid && (invalidStickInputMask & mask) == 0;
 }
 
 bool Inputs::isCameraControl(Io::StickID id) {
@@ -344,7 +370,7 @@ void Inputs::initStickValidState()
 
 void Inputs::resetInvalidStickError()
 {
-    initStickValidState();
+    { InterruptGuard guard; initStickValidState(); }
     Ui::instance.alertManager.dismissInvalidStickAlerts();
 }
 
@@ -365,14 +391,7 @@ bool Inputs::applyStickParams(const Params::StickCalibration *calibration,
     }
     // Copy constructors do no floating-point work. Only the short snapshots and
     // publication are masked; the six exponent calculations and UI work are not.
-    StickAxis prepared[] = {
-        StickAxis(Io::AdcStick0, StickAxis::Forward, 0),
-        StickAxis(Io::AdcStick1, StickAxis::Forward, 0),
-        StickAxis(Io::AdcStick2, StickAxis::Forward, 0),
-        StickAxis(Io::AdcStick3, StickAxis::Forward, 0),
-        StickAxis(Io::AdcGimbalY, StickAxis::Forward, 0),
-        StickAxis(Io::AdcGimbalRate, StickAxis::Forward, 0)
-    };
+    StickAxis prepared[6];
     {
         InterruptGuard guard;
         for (unsigned i = 0; i < 6; ++i) prepared[i] = sticks[i];

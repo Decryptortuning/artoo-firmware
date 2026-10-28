@@ -30,6 +30,8 @@ void Tasks::invoke(unsigned id)
         break;
 
     case FiftyHzHeartbeat:
+        ButtonManager::task();
+        Battery::instance.task();
         Inputs::fiftyHzWork();
         if (PowerManager::state() == PowerManager::Running) {
             FlightManager::instance.sysHeartbeat();
@@ -103,13 +105,10 @@ bool Tasks::work()
      */
 
     // Quickest possible early-exit
-    uint32_t tasks = pendingMask;
+    uint32_t tasks = __atomic_exchange_n(&pendingMask, 0, __ATOMIC_ACQ_REL);
     if (!tasks) {
         return false;
     }
-
-    // Clear only the bits we managed to capture above
-    Atomic::And(pendingMask, ~tasks);
 
     do {
         unsigned idx = Intrinsic::CLZ(tasks);

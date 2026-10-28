@@ -38,7 +38,7 @@ class SPIMaster {
         // others if we need them
     };
 
-    typedef void (*CompletionCallback)();
+    typedef void (*CompletionCallback)(bool success);
 
     struct CallbackCtxt {
         CompletionCallback cb;

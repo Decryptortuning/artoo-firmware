@@ -30,7 +30,8 @@
 
 
 /**
- * Template for a statically-sized ring buffer.
+ * Bounded single-producer/single-consumer ring with release/acquire publication.
+ * Multiple producers and reset require an external interrupt guard.
  */
 template <unsigned tSize, typename tItemType = uint8_t, typename tIndexType = uint16_t>
 class RingBuffer
@@ -40,6 +41,10 @@ class RingBuffer
     tItemType mBuf[tSize];
 
 public:
+    static_assert(__atomic_always_lock_free(sizeof(tIndexType), 0), "ring indices must be lock free");
+    static_assert(tSize >= 2 && (tSize & (tSize - 1)) == 0, "power of two ring size");
+    static_assert(tSize - 1 <= tIndexType(-1), "ring index width");
+
     RingBuffer() :
         mHead(0),
         mTail(0)
@@ -48,27 +53,29 @@ public:
     void ALWAYS_INLINE init() {
         // must be power of 2
         STATIC_ASSERT((tSize & (tSize - 1)) == 0);
-        mHead = mTail = 0;
+        __atomic_store_n(&mHead, 0, __ATOMIC_RELAXED);
+        __atomic_store_n(&mTail, 0, __ATOMIC_RELAXED);
     }
 
     unsigned ALWAYS_INLINE capacity() const {
         return tSize - 1;
     }
 
-    void ALWAYS_INLINE enqueue(tItemType c)
+    bool ALWAYS_INLINE enqueue(tItemType c)
     {
-        ASSERT(!full());
-        unsigned tail = mTail;
+        if (full()) return false;
+        unsigned tail = __atomic_load_n(&mTail, __ATOMIC_RELAXED);
         mBuf[tail] = c;
-        mTail = capacity() & (tail + 1);
+        __atomic_store_n(&mTail, capacity() & (tail + 1), __ATOMIC_RELEASE);
+        return true;
     }
 
     tItemType ALWAYS_INLINE dequeue()
     {
-        ASSERT(!empty());
-        unsigned head = mHead;
+        if (empty()) return tItemType();
+        unsigned head = __atomic_load_n(&mHead, __ATOMIC_RELAXED);
         tItemType c = mBuf[head];
-        mHead = capacity() & (head + 1);
+        __atomic_store_n(&mHead, capacity() & (head + 1), __ATOMIC_RELEASE);
         return c;
     }
 
@@ -93,7 +100,7 @@ public:
     void ALWAYS_INLINE dequeueWithDMACount(unsigned count) {
         // Update the 'head' pointer, given an updated DMA count.
         ASSERT(count < getDMACount());
-        mHead = capacity() & (tSize - count);
+        __atomic_store_n(&mHead, capacity() & (tSize - count), __ATOMIC_RELEASE);
     }
 
     /*
@@ -116,16 +123,18 @@ public:
     }
 
     bool ALWAYS_INLINE full() const {
-        return (capacity() & (mTail + 1)) == mHead;
+        return (capacity() & (__atomic_load_n(&mTail, __ATOMIC_RELAXED) + 1)) ==
+            __atomic_load_n(&mHead, __ATOMIC_ACQUIRE);
     }
 
     bool ALWAYS_INLINE empty() const {
-        return mHead == mTail;
+        return __atomic_load_n(&mHead, __ATOMIC_RELAXED) ==
+            __atomic_load_n(&mTail, __ATOMIC_ACQUIRE);
     }
 
     unsigned ALWAYS_INLINE readAvailable() const {
-        unsigned head = mHead;
-        unsigned tail = mTail;
+        unsigned head = __atomic_load_n(&mHead, __ATOMIC_ACQUIRE);
+        unsigned tail = __atomic_load_n(&mTail, __ATOMIC_ACQUIRE);
         return (tail - head) & capacity();
     }
 

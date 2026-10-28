@@ -1,6 +1,8 @@
 #ifndef UI_H
 #define UI_H
 
+#include "stm32/irqguard.h"
+
 #include "ui_telemetry.h"
 #include "ui_arming.h"
 #include "ui_pairing.h"
@@ -52,6 +54,7 @@ public:
     bool canProcessAlerts();
 
     void ALWAYS_INLINE pendEvent(Event::ID id) {
+        InterruptGuard guard; // ISR and foreground producers share this queue.
         if (events.full()) {
             DBG(("event queue full, event (%d) dropped!\n", id));
             return;
