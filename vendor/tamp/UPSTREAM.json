@@ -12,6 +12,7 @@
     "compressor.c": "71b4fc9d60b165af5f5b8b194c71a4c9d458e41e244c7ef4720ba90379ace41c",
     "compressor.h": "b07c8de6881f097bd5b4b246717cba8d961d357be10c01828ee974026b3a450e",
     "decompressor.c": "242eb28260c90e61090b8e27f93428ea077f1205da1b9ec92401b10edb7b206d",
-    "decompressor.h": "ff70f781773b9af65ed6fd513bd60d6667fc656e15f7b5e0234fea0ca8d25e77"
+    "decompressor.h": "ff70f781773b9af65ed6fd513bd60d6667fc656e15f7b5e0234fea0ca8d25e77",
+    "compressor_find_match_desktop.c": "8323c0ce0c329d5654f78103675a853b622d1248a185d9b23e0b1d7cec9f4bb4"
   }
 }
