@@ -2,7 +2,6 @@
 #include "rledecoder.h"
 #include "textlines.h"
 #include "ili9341parallel.h"
-#include "resources-gen.h"
 
 #include <stdlib.h>
 
@@ -38,6 +37,7 @@ void Gfx::clear(uint16_t color)
 
 void Gfx::fillRect(const Rect & r, uint16_t color)
 {
+    if (!r.width || !r.height) return;
     ILI9341Parallel::lcd.setRect(r);
     ILI9341Parallel::lcd.fill(color, r.pixelCount());
 }
@@ -47,7 +47,7 @@ void Gfx::drawImage(int16_t x, int16_t y, const ImageAsset &img) {
 }
 
 uint16_t Gfx::drawImageCanvasHCentered(int16_t y, const ImageAsset &img) {
-    uint16_t x = WIDTH/2 - img.width/2;
+    uint16_t x = img.width <= WIDTH ? WIDTH/2 - img.width/2 : 0;
     drawBitmapBytes(x, y, static_cast<ImageFormat>(img.format), img.palette, static_cast<const uint8_t*>(img.data), img.encodedBytes, img.width, img.height);
     return x;
 }
@@ -152,14 +152,15 @@ uint16_t Gfx::write(uint16_t x, uint16_t y, const char *s,  const char *s_end, c
 void Gfx::writeRightJustified(uint16_t x, uint16_t y, unsigned w, const char *s, const FontAsset & font)
 {
     unsigned strw = stringWidth(s, font);
-    write(x + w - strw, y, s, font);
+    const unsigned offset = w > strw ? w - strw : 0;
+    write(x + MIN(offset, unsigned(UINT16_MAX - x)), y, s, font);
 }
 
 void Gfx::writeCenterJustified(uint16_t x, uint16_t y, unsigned center, const char *s, const FontAsset & font)
 {
-    // XXX: bounds checking...?
-    unsigned xoffset = center - stringWidth(s, font)/2;
-    write(x + xoffset, y, s, font);
+    const unsigned halfWidth = stringWidth(s, font)/2;
+    const unsigned offset = center > halfWidth ? center - halfWidth : 0;
+    write(x + MIN(offset, unsigned(UINT16_MAX - x)), y, s, font);
 }
 
 void Gfx::writeCanvasCenterJustified(uint16_t y, const char *s, const FontAsset & font)
@@ -198,7 +199,7 @@ void Gfx::writeCanvasCenterJustified(uint16_t y, const char *s, const FontAsset 
 uint16_t Gfx::writeMonospace(uint16_t x, uint16_t y, const char *s, const FontAsset & font, char box,
                              uint16_t *color_fg, uint16_t *color_bg)
 {
-    ASSERT(font.hasGlyph(box));
+    if (!font.hasGlyph(box)) return x;
 
     uint8_t boxW = font.glyph(box).width;
 
@@ -206,7 +207,9 @@ uint16_t Gfx::writeMonospace(uint16_t x, uint16_t y, const char *s, const FontAs
         char c = *s;
         if (font.hasGlyph(c)) {
             // right justify within the box
-            uint16_t xoff = x + boxW - font.glyph(c).width;
+            const unsigned width = font.glyph(c).width;
+            const unsigned offset = boxW > width ? boxW - width : 0;
+            uint16_t xoff = x + MIN(offset, unsigned(UINT16_MAX - x));
             drawGlyph(c, xoff, y, font, color_fg, color_bg);
             x += boxW;
         }

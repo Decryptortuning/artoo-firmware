@@ -2,6 +2,7 @@
 """Decode every generated image/glyph with the production bounded RLE policy.
 Independent Python decoding supplies RGB565 checksums; no LCD is simulated.
 """
+import importlib.util
 import pathlib
 import re
 import subprocess
@@ -76,6 +77,25 @@ static void check(const void *bytes,unsigned len,unsigned count,const Gfx::Image
 }
 int main() {
 ''' + "\n".join(checks) + "\n}\n")
+    spec = importlib.util.spec_from_file_location("assetlimits",root / "tools/assetlimits.py")
+    limits = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(limits)
+    limits.glyph(255,255,65535)
+    for args in ((256,1,1),(1,256,1),(1,1,65536),(1,1,0),(-1,1,1)):
+        try: limits.glyph(*args)
+        except ValueError: pass
+        else: raise AssertionError(args)
+    limits.font(255,255,255,0,254)
+    for args in ((256,1,1,0,255),(2,256,1,0,1),(2,1,256,0,1),(2,1,1,255,256)):
+        try: limits.font(*args)
+        except ValueError: pass
+        else: raise AssertionError(args)
+    wrapper = out / "graphics-wrappers"
+    subprocess.run(["g++","-std=c++11","-DARTOO_HOST_TEST","-funsigned-char","-O1","-g",
+                    "-fsanitize=address,undefined","-fno-sanitize-recover=all","-fno-omit-frame-pointer",
+                    "-fno-pie","-no-pie","-I",str(root),"-include",str(root / "tests/lcd_sink.h"),
+                    str(root / "tests/graphics_wrappers.cpp"),str(root / "src/gfx.cpp"),"-o",str(wrapper)],check=True)
+    subprocess.run([str(wrapper)],check=True)
     exe = out / "graphics"
     subprocess.run(["g++","-std=c++11","-DARTOO_HOST_TEST","-funsigned-char","-O1","-g",
                     "-fsanitize=address,undefined","-fno-sanitize-recover=all","-fno-omit-frame-pointer",

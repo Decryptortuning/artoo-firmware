@@ -7,6 +7,7 @@
 import sys, datetime, os
 import configparser
 import itertools
+import assetlimits
 from io import StringIO
 from PIL import Image, ImageFont, ImageDraw
 
@@ -181,6 +182,9 @@ def convertFont(cfg_path, fontname, font_opts_str, palettes, cpp, hdr):
 
     glyphs = [chr(c) for c in range(ord(start_ch), ord(end_ch) + 1)]
 
+    ascent, descent = font.getmetrics()
+    assetlimits.font(len(glyphs), ascent, descent, ord(start_ch), ord(end_ch))
+
     # buffer the array of font glyphs so we don't need to traverse twice
     font_glyphs_str = StringIO()
     font_glyphs_str.write("static const Gfx::GlyphAsset %s_glyphs[] = {" % fontname)
@@ -189,6 +193,7 @@ def convertFont(cfg_path, fontname, font_opts_str, palettes, cpp, hdr):
         # Preserve getsize semantics: height includes the top bearing.
         left, top, right, bottom = font.getbbox(g)
         w, h = right - left, bottom
+        assetlimits.glyph(w, h, 1)
         im = Image.new("RGBA", (w, h))
         draw = ImageDraw.Draw(im)
         draw.rectangle([(0,0), im.size], fill=bg)
@@ -196,15 +201,15 @@ def convertFont(cfg_path, fontname, font_opts_str, palettes, cpp, hdr):
 
         glyph_name = "%s_glyph_%02x" % (fontname, ord(g))
         cpp.write("static const uint8_t %s_data[] = {" % (glyph_name))
-        writeImageBytes(rle(im.getdata(), glyph_name, palette), cpp)
+        encoded = rle(im.getdata(), glyph_name, palette)
+        assetlimits.glyph(w, h, len(encoded))
+        writeImageBytes(encoded, cpp)
         cpp.write("\n};\n\n")
 
         font_glyphs_str.write("\n    { %s_data, %d, %d, sizeof(%s_data) }," % (glyph_name, w, h, glyph_name))
 
     cpp.write(font_glyphs_str.getvalue())
     cpp.write("\n};\n\n")
-
-    ascent, descent = font.getmetrics()
 
     hdr.write("extern const Gfx::FontAsset %s;\n" % fontname)
     cpp.write("extern const Gfx::FontAsset %s = {\n" % fontname)
