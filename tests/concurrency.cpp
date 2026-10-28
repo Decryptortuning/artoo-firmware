@@ -32,9 +32,9 @@ alignas(256) static GPIO_t port;
 void GPIOPin::setControl(Control c) const { GPIOPin::setControl(port(), pin(), c); }
 void GPIOPin::irqInit() const {} // only architecture routing is mocked
 struct EventRecord { Button::Event event; bool pressed; };
-static std::vector<EventRecord> events;
+static std::vector<EventRecord> capturedEvents;
 void ButtonManager::dispatchEvt(Button *button, Button::Event event) {
-    events.push_back({event, button->isPressed()});
+    capturedEvents.push_back({event, button->isPressed()});
 }
 extern "C" void ISR_DMA2_Channel4_5();
 
@@ -132,29 +132,29 @@ static void buttonGestures()
     Button button(gpio,gpio,gpio,Io::ButtonFly);
     port.IDR = 1;
     button.init(); // boot-held input is captured without a synthetic Press
-    assert(button.isPressed() && events.empty());
+    assert(button.isPressed() && capturedEvents.empty());
     fakeNow = SysTime::msTicks(2800);
     button.pollForHold();
-    assert(events.size() == 3 && events[2].event == Button::LongHold);
-    button.pollForHold(); assert(events.size() == 3);
+    assert(capturedEvents.size() == 3 && capturedEvents[2].event == Button::LongHold);
+    button.pollForHold(); assert(capturedEvents.size() == 3);
     button.handleEdge(false,SysTime::msTicks(3000));
-    assert(events.back().event == Button::LongHoldRelease && !events.back().pressed);
-    events.clear();
+    assert(capturedEvents.back().event == Button::LongHoldRelease && !capturedEvents.back().pressed);
+    capturedEvents.clear();
     fakeNow = SysTime::sTicks(99); // foreground was delayed; use captured durations
     button.handleEdge(true,SysTime::msTicks(4000));
     button.handleEdge(false,SysTime::msTicks(4100));
-    assert(events.size() == 3 && events[0].event == Button::Press &&
-           events[2].event == Button::ClickRelease);
-    events.clear();
+    assert(capturedEvents.size() == 3 && capturedEvents[0].event == Button::Press &&
+           capturedEvents[2].event == Button::ClickRelease);
+    capturedEvents.clear();
     port.IDR = 1;
     button.resynchronize(SysTime::msTicks(5000)); // lost-edge policy
     fakeNow = SysTime::sTicks(100);
-    button.pollForHold(); assert(events.empty());
+    button.pollForHold(); assert(capturedEvents.empty());
     button.handleEdge(false,SysTime::msTicks(6000));
-    assert(events.empty()); // quarantined release emits no command gesture
+    assert(capturedEvents.empty()); // quarantined release emits no command gesture
     button.handleEdge(true,SysTime::msTicks(7000));
     button.handleEdge(false,SysTime::msTicks(7100));
-    assert(events.size() == 3 && events.back().event == Button::ClickRelease);
+    assert(capturedEvents.size() == 3 && capturedEvents.back().event == Button::ClickRelease);
 }
 
 static unsigned callback4, callback5;
