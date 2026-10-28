@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -7,6 +8,8 @@
 #include "src/hostmessage.h"
 #include "src/slipdecoder.h"
 #include "SLIP.h" // Actual SoloLink consumer, compiled into this host test.
+
+static_assert(CHAR_MIN == 0, "actual SoloLink SLIP fixture must model ARM char ABI");
 
 static std::vector<uint8_t> linuxDecode(const uint8_t *bytes, unsigned length)
 {

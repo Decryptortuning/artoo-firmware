@@ -13,7 +13,9 @@ peer = args.sololink_root / "flightcode" / "stm32"
 with tempfile.TemporaryDirectory(prefix="artoo-transport-") as directory:
     exe = pathlib.Path(directory) / "transport"
     subprocess.run([
-        "g++", "-std=c++11", "-O1", "-g", "-Wall", "-Wextra",
+        # Model ARM's unsigned-char ABI: the actual Linux SLIP implementation
+        # compares char octets directly to unsigned SLIP control constants.
+        "g++", "-std=c++11", "-funsigned-char", "-O1", "-g", "-Wall", "-Wextra",
         "-fsanitize=address,undefined", "-fno-sanitize-recover=all",
         "-fno-omit-frame-pointer", "-fno-pie", "-no-pie",
         "-I", str(root), "-I", str(peer), str(root / "tests/transport.cpp"),
