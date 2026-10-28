@@ -4,5 +4,5 @@
   "component": "artoo",
   "split_revision": "b1f579c3161ec8ea857ade99d68e4491e7cdcdaf",
   "owner_patch": "31901c3500eee205534fade61e5c19b0e3622e19",
-  "version_policy": "4.0.0 development lineage; not an upstream release or hardware-qualified build"
+  "version_policy": "OpenSolo 4 development source lineage with local OpenSolo 5 branding; not an upstream release or hardware-qualified build"
 }

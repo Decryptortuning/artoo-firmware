@@ -74,7 +74,7 @@ const UiAlertManager::Alert UiAlertManager::alerts[] = {
     { Orange, NoHaptic, HintBoxBanner, 5000, DismissNone, NULL, NULL, "Mobile app disconnected", NULL },
 
     // ControllerValueOutOfRange
-    { Red, NoHaptic, FullScreenThenHintBox, 5000, DismissNone, "Control stick ", "error", "Contact 3DR Support", NULL },
+    { Red, NoHaptic, FullScreenThenHintBox, 5000, DismissNone, "Control stick ", "error", "OpenSolo 5 support", NULL },
 
     // CamControlValueOutOfRange
     { Orange, MedHaptic, HintBoxBanner, 5000, DismissNone, NULL, NULL, NULL, NULL },

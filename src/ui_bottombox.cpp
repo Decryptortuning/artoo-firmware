@@ -25,8 +25,8 @@ const UiBottomBox::Msg UiBottomBox::msgs[] = {
     { Event::SoloAppDisconnected, NoUserInput, 5000, "Mobile app disconnected", NULL },
 
     // Persistent alerts
-    { Event::ControllerValueOutOfRange, NoUserInput, 5000, "Control stick error", "Contact 3DR Support"},
-    { Event::CamControlValueOutOfRange, NoUserInput, 5000, "Manual camera controls error", "Contact 3DR Support"},
+    { Event::ControllerValueOutOfRange, NoUserInput, 5000, "Control stick error", "OpenSolo 5 support"},
+    { Event::CamControlValueOutOfRange, NoUserInput, 5000, "Manual camera controls error", "OpenSolo 5 support"},
 
     // Unused
     { Event::RecordRequiresApp, NoUserInput, 5000, "Mobile app required for this action", NULL },
