@@ -707,6 +707,11 @@ struct NVIC_t {
         irqSetEnable[id >> 5] = 1 << (id & 31);
     }
 
+    bool irqIsEnabled(const ISR_t &vector) const volatile {
+        unsigned id = ((uintptr_t)&vector - (uintptr_t)&IVT.WWDG) >> 2;
+        return (irqSetEnable[id >> 5] & (1u << (id & 31))) != 0;
+    }
+
     void irqDisable(const ISR_t &vector) volatile {
         unsigned id = ((uintptr_t)&vector - (uintptr_t)&IVT.WWDG) >> 2;
         irqClearEnable[id >> 5] = 1 << (id & 31);

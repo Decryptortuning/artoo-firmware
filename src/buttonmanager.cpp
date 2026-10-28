@@ -93,6 +93,7 @@ bool ButtonManager::setButtonFunction(Io::ButtonID id, const ButtonFunction::Con
         Button & btn = button(id);
         ButtonFunction::Config & cfg = ButtonFunction::get(id);
         memcpy(&cfg, c, sizeof cfg);
+        cfg.descriptor[sizeof cfg.descriptor - 1] = '\0';
 
         if (cfg.descriptor[0] == '\0') {
             // XXX: no descriptor indicates this button isn't currently mapped to a function
@@ -294,12 +295,7 @@ bool ButtonManager::producePacket(HostProtocol::Packet &p)
 
     ButtonEvent &be = events[pendingEventIdxs.dequeue()];
 
-    p.delimitSlip();
-    p.appendSlip(HostProtocol::ButtonEvent);
-    p.append(be.bytes, sizeof be);
-    p.delimitSlip();
-
-    return true;
+    return HostMessage::appendButtonEvent(p, be.id, be.event, be.allButtonsMask);
 }
 
 void ButtonManager::shutdown()

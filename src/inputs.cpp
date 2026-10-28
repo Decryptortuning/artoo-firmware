@@ -135,6 +135,16 @@ bool Inputs::producePacket(HostProtocol::Packet &pkt)
     // always send an alert if out of range stick values are being received,
     // optionally followed by regularly scheduled input reports.
 
+    // Worst-case encoded aggregate: invalid-stick (4+4*2 bytes), DSM
+    // (8 channels), input report (3 uint16), raw ADC samples + button mask.
+    // Each frame has two delimiters and one unescaped host ID.
+    static_assert(HostProtocol::TxCapacity >=
+                  (3 + 2 * (sizeof(Io::AdcID) + 4 * sizeof(uint16_t))) +
+                  (3 + 2 * 8 * sizeof(uint16_t)) +
+                  (3 + 2 * 3 * sizeof(uint16_t)) +
+                  (3 + 2 * (sizeof(adcSamples) + sizeof(uint16_t))),
+                  "encoded input aggregate exceeds TX storage");
+
     bool appendedInvalidStickVals = invalidStickVals.producePacket(pkt);
 
     if (!reportRequested) {

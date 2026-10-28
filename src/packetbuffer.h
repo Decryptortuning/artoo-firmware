@@ -7,6 +7,7 @@
  */
 
 #include <stdint.h>
+#include <string.h>
 
 #include "stm32/common.h"
 
@@ -24,20 +25,26 @@ class PacketBuffer {
 
     uint8_t bytes[tSize];
     unsigned len;
+    bool valid;
 
 public:
 
     PacketBuffer() :
-        len(0)
+        len(0), valid(true)
     {}
 
     ALWAYS_INLINE void reset() {
         len = 0;
+        valid = true;
     }
 
     ALWAYS_INLINE bool isFull() const {
-        return len == tSize;
+        return len >= tSize;
     }
+
+    static const unsigned Capacity = tSize;
+
+    ALWAYS_INLINE bool ok() const { return valid; }
 
     ALWAYS_INLINE bool isEmpty() const {
         return len == 0;
@@ -59,55 +66,44 @@ public:
         return (len == 0) ? 0 : len - 1;
     }
 
-    ALWAYS_INLINE void append(uint8_t b) {
-        ASSERT(!isFull());
-        bytes[len++] = b;
+    ALWAYS_INLINE bool append(uint8_t b) {
+        return append(&b, 1);
     }
 
-    ALWAYS_INLINE void append(const void *src, unsigned count) {
-        ASSERT(bytesFree() >= count);
-        memcpy(bytes + len, src, count);
+    ALWAYS_INLINE bool append(const void *src, unsigned count) {
+        if (!valid || count > bytesFree()) {
+            valid = false;
+            return false;
+        }
+        if (count) memcpy(bytes + len, src, count);
         len += count;
+        return true;
     }
 
-    void appendSlip(uint8_t b) {
-        switch (b) {
-        case Slip::END:
-            append(Slip::ESC);
-            append(Slip::ESC_END);
-            break;
-
-        case Slip::ESC:
-            append(Slip::ESC);
-            append(Slip::ESC_ESC);
-            break;
-
-        default:
-            append(b);
+    bool appendSlip(uint8_t b) {
+        if (b == Slip::END || b == Slip::ESC) {
+            const uint8_t escaped[] = { Slip::ESC,
+                static_cast<uint8_t>(b == Slip::END ? Slip::ESC_END : Slip::ESC_ESC) };
+            return append(escaped, sizeof escaped);
         }
+        return append(b);
     }
 
-    void appendSlip(const void *src, unsigned count) {
-        const uint8_t *p = reinterpret_cast<const uint8_t*>(src);
+    bool appendSlip(const void *src, unsigned count) {
+        const uint8_t *p = static_cast<const uint8_t*>(src);
         while (count--) {
-            appendSlip(*p);
-            p++;
+            if (!appendSlip(*p++)) return false;
         }
+        return valid;
     }
 
     template<typename T>
-    void appendItemSlip(const T & s) {
-        const uint8_t *p = reinterpret_cast<const uint8_t*>(&s);
-        unsigned sz = sizeof s;
-        while (sz--) {
-            appendSlip(*p);
-            p++;
-        }
+    bool appendItemSlip(const T &s) {
+        return appendSlip(&s, sizeof s);
     }
 
-    ALWAYS_INLINE void delimitSlip() {
-        append(Slip::END);
-    }
+    ALWAYS_INLINE bool delimitSlip() { return append(Slip::END); }
+
 };
 
 #endif // PACKETBUFFER_H

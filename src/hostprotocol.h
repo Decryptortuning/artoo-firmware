@@ -4,60 +4,35 @@
 #include <string.h>
 
 #include "packetbuffer.h"
+#include "hostmessage.h"
+#include "slipdecoder.h"
 #include "ringbuffer.h"
 #include "stm32/usart.h"
 #include "stm32/vectors.h"
 
 #include "mavlink/c_library/ardupilotmega/mavlink.h"
 
-class HostProtocol
+class HostProtocol : public HostMessage
 {
 public:
     HostProtocol(Usart u) :
         uart(u),
         txPending(false),
-        txPacket(), rxPacket(),
+        txPacket(), rxDecoder(),
         rxbuf(),
         stats(),
-        lastRxByteWasEsc(false),
-        synced(false),
+        rxResetPending(false),
         firstMsgRxed(false),
         hostRequest(Nop)
     {}
 
-    enum MsgID {
-        Nop,                // Empty packet
-        DsmChannels,        // DSM channels to be sent to vehicle
-        Calibrate,          // Calibration data - store in nonvolatile mem
-        SysInfo,            // HW ID & version info
-        Mavlink,            // Mavlink data
-        SetRawIo,           // control whether RawIoReports should be sent
-        RawIoReport,        // io measurements, for assembly testing
-        PairRequest,        // vehicle pair button has been pushed
-        PairConfirm,        // artoo user has confirmed pair request
-        PairResult,         // pairing process completed
-        ShutdownRequest,    // system has received a shutdown request from the user
-        ParamStoredVals,    // request/report a Params::StoredValues structure (see params.h)
-        OutputTest,         // read/write the LEDs, buzzer, vibe motor
-        ButtonEvent,        // push button event
-        InputReport,        // 16-bit inputs not included in DSM reports
-        ConfigStickAxes,    // specify which sticks to use for which control axes
-        ButtonFunctionCfg,  // specify the function of A/B/Loiter buttons
-        SetShotInfo,        // set the current shot
-        Updater,            // screens for update flow
-        LockoutState,       // update the lockout state of the system
-        SelfTest,           // request/response for factory self test
-        ConfigSweepTime,    // specify bounds of camera sweep time
-        GpioTest,           // used during factory test to enable/disable some gpio lines
-        TestEvent,          // debug only for testing event behaviours
-        SetTelemUnits,      // set telemetry units to metric/imperial
-        InvalidStickInputs, // out of range stick values received
-        SoloAppConnection,  // solo app connection status (connected/disconnected)
-    };
 
-    // mavlink packets set the upper bound of our size here
-    // this means we're a little bit heavy, but we're not RAM starved yet...
-    typedef PacketBuffer<MAVLINK_MAX_PACKET_LEN> Packet;
+    // One host ID plus the largest current MAVLink-1 frame. TX reserves
+    // worst-case escaping and both delimiters; never use a raw size for SLIP.
+    static const unsigned RawCapacity = 1 + MAVLINK_MAX_PACKET_LEN;
+    static const unsigned TxCapacity = 2 * RawCapacity + 2;
+    typedef PacketBuffer<TxCapacity> Packet;
+    typedef PacketBuffer<RawCapacity> RxPacket;
 
     static HostProtocol instance;
 
@@ -79,7 +54,7 @@ private:
     void producePacket();
     bool dispatchProduce();
     bool produceHostProtocolPacket(Packet &p);
-    void processPacket(const Packet &p);
+    void processPacket(const RxPacket &p);
     void processMavlinkData(const uint8_t *bytes, unsigned len);
 
     void onUpdaterMsg(const uint8_t *bytes, unsigned len);
@@ -92,7 +67,8 @@ private:
     Usart uart;
     volatile bool txPending;
 
-    Packet txPacket, rxPacket;
+    Packet txPacket;
+    SlipDecoder<RawCapacity> rxDecoder;
     RingBuffer<2048> rxbuf; // again, huge but we're not strapped for RAM yet
 
     struct Stats {
@@ -102,10 +78,11 @@ private:
         uint32_t overruns;
         uint32_t dropped;
         uint32_t lineErrors;
+        uint32_t rejectedFrames;
+        uint32_t txRejected;
     } stats;
 
-    bool lastRxByteWasEsc;
-    bool synced;
+    volatile bool rxResetPending;
 
     bool firstMsgRxed;
 

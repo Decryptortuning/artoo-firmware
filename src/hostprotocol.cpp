@@ -25,7 +25,7 @@ HostProtocol HostProtocol::instance(Usart(&HOST_UART, onTxComplete));
 void HostProtocol::init()
 {
     rxbuf.init();
-    rxPacket.reset();
+    rxDecoder.reset();
 
     /*
      * we want to enable uart RX immediately, in case
@@ -69,9 +69,8 @@ void HostProtocol::disableTX()
 
     firstMsgRxed = false;
 
-    rxPacket.reset();
-    synced = false;
-    lastRxByteWasEsc = false;
+    rxDecoder.reset();
+    rxResetPending = false;
 }
 
 void HostProtocol::requestTransaction()
@@ -111,11 +110,12 @@ void HostProtocol::producePacket()
 
     txPacket.reset();
 
-    if (dispatchProduce()) {
+    if (dispatchProduce() && txPacket.ok() && !txPacket.isEmpty()) {
         txPending = true;
         uart.writeDma(txPacket.data(), txPacket.length());
         stats.txBytes += txPacket.length();
     } else {
+        if (!txPacket.ok()) ++stats.txRejected;
         txPending = false;
     }
 }
@@ -214,13 +214,13 @@ void HostProtocol::isr()
     uint16_t status = uart.isr(b);
 
     if (status & Usart::SR_OVERRUN) {
-        synced = false;
+        rxResetPending = true;
         stats.overruns++;
 
     } else if (status & (Usart::SR_NOISE_ERR | Usart::SR_FRAMING_ERR)) {
         // NE and FE show up at the same time as RXNE,
         // so check those first, and only accept byte if they're clear
-        synced = false;
+        rxResetPending = true;
         stats.lineErrors++;
 
     } else if (status & Usart::SR_RXED) {
@@ -229,77 +229,49 @@ void HostProtocol::isr()
             Tasks::trigger(Tasks::HostProtocol);
         } else {
             stats.dropped++;
+            rxResetPending = true;
         }
     }
 }
 
 void HostProtocol::task()
 {
-    /*
-     * Process the packet that has just arrived.
-     */
-
-    while (!rxbuf.empty()) {
-
-        uint8_t b = rxbuf.dequeue();
-        stats.rxBytes++;
-
-        if (!synced) {
-            if (b == Slip::END) {
-                rxPacket.reset();
-                synced = true;
-                lastRxByteWasEsc = false;
-            }
+    while (!rxbuf.empty() || rxResetPending) {
+        if (rxResetPending) {
+            // All queued bytes may straddle the lost byte. Drop that queue as
+            // one unit, then require a fresh delimiter before accepting data.
+            const bool enabled = NVIC.irqIsEnabled(IVT.HOST_UART);
+            NVIC.irqDisable(IVT.HOST_UART);
+            rxbuf.init();
+            rxDecoder.reset();
+            rxResetPending = false;
+            if (enabled) NVIC.irqEnable(IVT.HOST_UART);
+            ++stats.rejectedFrames;
             continue;
         }
-
-        if (lastRxByteWasEsc) {
-            if (b == Slip::ESC_END) {
-                b = Slip::END;
-            } else if (b == Slip::ESC_ESC) {
-                b = Slip::ESC;
-            } else {
-                // if it's not an ESC_END or ESC_ESC, it's a malformed packet.
-                // http://tools.ietf.org/html/rfc1055 says
-                // just drop it in the packet anyway in this case.
-                stats.malformedBytes++;
-            }
-            if (!rxPacket.isFull()) {
-                rxPacket.append(b);
-            }
-            lastRxByteWasEsc = false;
-            continue;
-        }
-
-        switch (b) {
-        case Slip::END:
-            if (!rxPacket.isEmpty()) {
-                processPacket(rxPacket);
-                rxPacket.reset();
-            }
-            break;
-
-        case Slip::ESC:
-            // we got an ESC character - we'll treat the next char specially
-            lastRxByteWasEsc = true;
-            break;
-
-        default:
-            if (!rxPacket.isFull()) {
-                rxPacket.append(b);
-            }
-            break;
+        const uint8_t byte = rxbuf.dequeue();
+        ++stats.rxBytes;
+        const SlipDecoder<RawCapacity>::Result result = rxDecoder.consume(byte);
+        if (result == SlipDecoder<RawCapacity>::Complete) {
+            if (!rxResetPending) processPacket(rxDecoder.packet());
+        } else if (result == SlipDecoder<RawCapacity>::Rejected) {
+            ++stats.rejectedFrames;
         }
     }
 }
 
-void HostProtocol::processPacket(const Packet &p)
+void HostProtocol::processPacket(const RxPacket &p)
 {
-    if (!firstMsgRxed) {
-        firstMsgRxed = true;
+    static_assert(sizeof(Params::StoredValues::sticks) == CalibrationBytes, "calibration wire layout");
+    static_assert(sizeof(Params::StoredValues::rcSticks) == StickConfigBytes, "axis wire layout");
+    static_assert(sizeof(Params::SweepConfig) == SweepConfigBytes, "sweep wire layout");
+    static_assert(sizeof(Params::StoredValues) == 172, "persistent/host parameter layout");
+    if (p.isEmpty() || !p.ok() || !payloadLengthValid(p.data()[0], p.payloadLen())) {
+        ++stats.rejectedFrames;
+        return;
     }
-
-    const uint8_t * bytes = p.data();
+    firstMsgRxed = true;
+    const uint8_t *bytes = p.data();
 
     switch (bytes[0]) {
 
@@ -351,17 +323,18 @@ void HostProtocol::processPacket(const Packet &p)
         }
         break;
 
-    case ButtonFunctionCfg:
-        if (p.payloadLen() >= ButtonFunction::Config::MIN_LEN && p.payloadLen() < sizeof(ButtonFunction::Config)) {
-            const ButtonFunction::Config *pcfg = reinterpret_cast<const ButtonFunction::Config*>(&bytes[1]);
-            Io::ButtonID id = static_cast<Io::ButtonID>(pcfg->buttonID);
-
-            if (ButtonManager::setButtonFunction(id, pcfg)) {
+    case ButtonFunctionCfg: {
+        static_assert(sizeof(ButtonFunction::Config) == ButtonConfigBytes, "button wire layout");
+        ButtonFunction::Config cfg = {};
+        if (decodeButtonConfig(&cfg, &bytes[1], p.payloadLen())) {
+            Io::ButtonID id = static_cast<Io::ButtonID>(cfg.buttonID);
+            if (ButtonManager::setButtonFunction(id, &cfg)) {
                 Params::sys.mark();
                 Ui::instance.pendEvent(Event::ButtonFunctionUpdated);
             }
         }
         break;
+    }
 
     case Mavlink:
         Mavlink::onMavlinkData(&bytes[1], p.payloadLen());
@@ -380,7 +353,8 @@ void HostProtocol::processPacket(const Packet &p)
         break;
 
     case SetShotInfo: {
-        const char *si = reinterpret_cast<const char*>(&bytes[1]);
+        char si[ShotTextBytes + 1];
+        copyText(si, sizeof si, &bytes[1], p.payloadLen());
         Ui::instance.gimbal.onShotChanged(si);
         Ui::instance.topBar.onShotChanged(si);
     } break;

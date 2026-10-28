@@ -8,7 +8,7 @@
 VehicleConnector VehicleConnector::instance;
 
 VehicleConnector::VehicleConnector() :
-    _state(Idle)
+    _state(Idle), deviceID()
 {
 }
 
@@ -38,13 +38,8 @@ void VehicleConnector::onPairingRequest(const uint8_t *payload, unsigned len)
      * we expect 'len' includes null terminator.
      */
 
-    const unsigned idsz = sizeof deviceID;
-    strncpy(deviceID, (const char*)payload, idsz);
-
-    // ensure we're null terminated
-    if (len >= idsz) {
-        deviceID[idsz - 1] = '\0';
-    }
+    if (!HostMessage::pairingTextValid(payload, len)) return;
+    HostMessage::copyText(deviceID, sizeof deviceID, payload, len);
 
     _state = RequestReceived;
     Ui::instance.pendEvent(Event::PairingRequest);
@@ -61,7 +56,9 @@ void VehicleConnector::onPairingResult(const uint8_t *payload, unsigned len)
      * we expect 'len' includes null terminator.
      */
 
-    if (len > 1 && strncmp(deviceID, (const char*)payload, sizeof deviceID) == 0) {
+    if (!HostMessage::pairingTextValid(payload, len)) return;
+
+    if (len > 1 && strlen(deviceID) + 1 == len && memcmp(deviceID, payload, len) == 0) {
         Ui::instance.pendEvent(Event::PairingSucceeded);
 
     } else {
