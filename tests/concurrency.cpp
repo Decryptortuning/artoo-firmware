@@ -26,6 +26,7 @@ void artooTestRestoreInterrupts(uint32_t previous) {
 static SysTime::Ticks fakeNow;
 SysTime::Ticks SysTime::now() { return fakeNow; }
 volatile EXTI_t EXTI;
+alignas(256) volatile GPIO_t GPIOG; // board LED_GPIO_NONE identity only
 volatile DMA_t DMA1, DMA2;
 volatile RCC_t RCC;
 alignas(256) static GPIO_t port;
