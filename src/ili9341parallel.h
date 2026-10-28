@@ -2,6 +2,7 @@
 #define ILI9341_PARALLEL_H
 
 #include "stm32/fsmc.h"
+#include "stm32/irqguard.h"
 #include "stm32/systime.h"
 #include "gfx.h"
 #include "board.h"
@@ -21,6 +22,7 @@ public:
     static void tearingEffectIsr();
 
     SysTime::Ticks ticksSinceLastTE() const {
+        InterruptGuard guard;
         return SysTime::now() - lastTeIsr;
     }
 

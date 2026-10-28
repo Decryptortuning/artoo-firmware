@@ -217,6 +217,7 @@ void ILI9341Parallel::tearingEffectIsr()
     if (te.irqPending()) {
         te.irqAcknowledge();
         Tasks::trigger(Tasks::DisplayRender);
+        InterruptGuard guard;
         lastTeIsr = SysTime::now();
     }
 #endif
