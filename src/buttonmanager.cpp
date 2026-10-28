@@ -308,16 +308,8 @@ void ButtonManager::shutdown()
         buttons[i].greenLedOff();
     }
 
-    // disable all buttons other than power
-    ButtonManager::button(Io::ButtonA).disableIRQ();
-    ButtonManager::button(Io::ButtonB).disableIRQ();
-    ButtonManager::button(Io::ButtonLoiter).disableIRQ();
-    ButtonManager::button(Io::ButtonFly).disableIRQ();
-    ButtonManager::button(Io::ButtonRTL).disableIRQ();
-    ButtonManager::button(Io::ButtonPreset1).disableIRQ();
-    ButtonManager::button(Io::ButtonPreset1).disableIRQ();
-    ButtonManager::button(Io::ButtonFly).disableIRQ();
-    ButtonManager::button(Io::ButtonCameraClick).disableIRQ();
-
-    setBacklight(0);
+    // Keep only the power button's wake interrupt active.
+    for (unsigned i = 0; i < arraysize(buttons); ++i) {
+        if (i != Io::ButtonPower) buttons[i].disableIRQ();
+    }
 }

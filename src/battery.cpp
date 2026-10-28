@@ -104,11 +104,19 @@ void Battery::onCellSamples(uint16_t bottom, uint16_t top, uint16_t therm, uint1
         id = pid;
     }
 
-    // remove the bottom component from the top cell measurement
+    // The top channel measures the total pack. Inconsistent samples must not
+    // wrap into an apparent high cell voltage. Keep charging/balancing off,
+    // retain the last valid level, and wait for the next scheduled sample.
+    if (top < bottom || top >= 4096 || bottom >= 4096) {
+        chgDisable();
+        CELL_SHUNT_BOT_GPIO.setLow();
+        CELL_SHUNT_TOP_GPIO.setLow();
+        return;
+    }
     top -= bottom;
 
     unsigned newCellSum = bottom + top;
-    if (cellSum != newCellSum) {
+    if (!isInitialized() || cellSum != newCellSum) {
         cellSum = newCellSum;
 
         unsigned lvl = lookupLevel();
@@ -182,15 +190,15 @@ void Battery::updateBattLevel(unsigned lvl)
     unsigned movingAvgBattLevel = battLevelFilt.average();
     // propogate new battery level a single time after battery level has settled
     if (battLevelStableCount == MIN_STABLE_COUNT) {
-        onLevelChanged(movingAvgBattLevel);
         battLevel = movingAvgBattLevel;
+        onLevelChanged(battLevel);
         return;
     }
 
     // update battery level when the moving average deviates by a significant amount from the previously latched battery level or if the new battery level reaches zero
     if (Intrinsic::abs(static_cast<int>(movingAvgBattLevel) - static_cast<int>(battLevel)) >= MIN_LVL_DIFF_TO_UPDATE || (!movingAvgBattLevel && battLevel)) {
-        onLevelChanged(movingAvgBattLevel);
         battLevel = movingAvgBattLevel;
+        onLevelChanged(battLevel);
     }
 }
 

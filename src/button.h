@@ -171,7 +171,7 @@ public:
     }
 
     void ALWAYS_INLINE disableIRQ() {
-        pin.irqEnable();
+        pin.irqDisable();
     }
 
     // only intended to be called by Inputs
