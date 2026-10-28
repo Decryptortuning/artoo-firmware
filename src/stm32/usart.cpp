@@ -40,11 +40,8 @@ void Usart::init(GPIOPin rx, GPIOPin tx, int rate, bool dma, StopBits bits)
     }
     else if (uart == &UART5) {
         RCC.APB1ENR |= (1 << 20);
-
-        if (dma) {
-            dmaRxChan = Dma::initChannel(&DMA1, 1, dmaRXCallback, this);  // DMA1, channel 2
-            dmaTxChan = Dma::initChannel(&DMA1, 2, dmaTXCallback, this);  // DMA1, channel 3
-        }
+        // STM32F103 UART5 has no DMA request mapping. Never borrow SPI channels.
+        if (dma) { uart->CR1 = 0; return; }
     }
 
 #if 0 //BOARD >= BOARD_TC_MASTER_REV3
@@ -76,6 +73,7 @@ void Usart::init(GPIOPin rx, GPIOPin tx, int rate, bool dma, StopBits bits)
                 (bits << 12);   // STOP - bits
 
     if (dma) {
+        if (!dmaRxChan || !dmaTxChan) { uart->CR1 = 0; return; }
         uart->CR3 = (1 << 7) |  // DMAT - dma TX
                     (1 << 6) |  // DMAR - dma RX
                     (1 << 0);   // EIE - error interrupt enable
@@ -216,6 +214,10 @@ void Usart::cancelTx()
 
 void Usart::writeDma(const uint8_t *buf, unsigned len)
 {
+    if (!dmaTxChan || !buf || !len) {
+        if (txCompletionCB) txCompletionCB(false);
+        return;
+    }
     uart->SR &= ~SR_TC;  // TC: clear transmission complete
 
     dmaTxChan->CNDTR = len;
@@ -231,6 +233,10 @@ void Usart::writeDma(const uint8_t *buf, unsigned len)
 
 void Usart::readDma(const uint8_t *buf, unsigned len)
 {
+    if (!dmaRxChan || !buf || !len) {
+        if (rxCompletionCB) rxCompletionCB(false);
+        return;
+    }
     dmaRxChan->CNDTR = len;
     dmaRxChan->CMAR = (uint32_t)buf;
     dmaRxChan->CCR = (1 << 7) |  // MINC - memory pointer increment

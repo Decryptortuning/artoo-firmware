@@ -170,7 +170,7 @@ public:
     }
 
     ALWAYS_INLINE bool readyToArm() const {
-        return ((1 << mode) & modeArmableStatus);
+        return Intrinsic::BitIsSet(modeArmableStatus, unsigned(mode));
     }
 
     ALWAYS_INLINE bool readyToArmWithoutGPS() const {

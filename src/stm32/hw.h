@@ -703,28 +703,32 @@ struct NVIC_t {
     }
 
     void irqEnable(const ISR_t &vector) volatile {
-        unsigned id = ((uintptr_t)&vector - (uintptr_t)&IVT.WWDG) >> 2;
-        irqSetEnable[id >> 5] = 1 << (id & 31);
+        unsigned id = ((uintptr_t)&vector - (uintptr_t)&IVT.WWDG) / sizeof(ISR_t);
+        if (id < 60) irqSetEnable[id >> 5] = 1u << (id & 31);
     }
 
     bool irqIsEnabled(const ISR_t &vector) const volatile {
-        unsigned id = ((uintptr_t)&vector - (uintptr_t)&IVT.WWDG) >> 2;
-        return (irqSetEnable[id >> 5] & (1u << (id & 31))) != 0;
+        unsigned id = ((uintptr_t)&vector - (uintptr_t)&IVT.WWDG) / sizeof(ISR_t);
+        return id < 60 && (irqSetEnable[id >> 5] & (1u << (id & 31))) != 0;
     }
 
     void irqDisable(const ISR_t &vector) volatile {
-        unsigned id = ((uintptr_t)&vector - (uintptr_t)&IVT.WWDG) >> 2;
-        irqClearEnable[id >> 5] = 1 << (id & 31);
+        unsigned id = ((uintptr_t)&vector - (uintptr_t)&IVT.WWDG) / sizeof(ISR_t);
+        if (id < 60) irqClearEnable[id >> 5] = 1u << (id & 31);
     }
 
     void irqPrioritize(const ISR_t &vector, uint8_t prio) volatile {
-        unsigned id = ((uintptr_t)&vector - (uintptr_t)&IVT.WWDG) >> 2;
-        irqPriority[id >> 2] |= prio << ((id & 3) << 3);
+        unsigned id = ((uintptr_t)&vector - (uintptr_t)&IVT.WWDG) / sizeof(ISR_t);
+        if (id >= 60) return;
+        const unsigned shift = (id & 3) * 8;
+        irqPriority[id >> 2] = (irqPriority[id >> 2] & ~(0xffu << shift)) | (uint32_t(prio) << shift);
     }
     
     void sysHandlerPrioritize(const ISR_t &vector, uint8_t prio) volatile {
-        unsigned id = ((uintptr_t)&vector - (uintptr_t)&IVT.MemManage) >> 2;
-        sysHandlerPriority[id >> 2] |= prio << ((id & 3) << 3);
+        unsigned id = ((uintptr_t)&vector - (uintptr_t)&IVT.MemManage) / sizeof(ISR_t);
+        if (id >= 12) return;
+        const unsigned shift = (id & 3) * 8;
+        sysHandlerPriority[id >> 2] = (sysHandlerPriority[id >> 2] & ~(0xffu << shift)) | (uint32_t(prio) << shift);
     }
 
     void systemReset() volatile {

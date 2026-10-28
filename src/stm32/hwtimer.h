@@ -75,15 +75,18 @@ public:
     }
 
     void ALWAYS_INLINE enableChannel(int ch) const {
+        if (ch < 1 || ch > 4) return;
         tim->SR &= ~(1 << ch);  // CCxIF bits start at 1, so no need to subtract from 1-based channel num
         tim->CCER |= 1 << ((ch - 1) * 4);
     }
 
     void ALWAYS_INLINE disableChannel(int ch) const {
+        if (ch < 1 || ch > 4) return;
         tim->CCER &= ~(0x1 << ((ch - 1) * 4));
     }
 
     bool ALWAYS_INLINE channelIsEnabled(int ch) const {
+        if (ch < 1 || ch > 4) return false;
         return (tim->CCER & (1 << ((ch - 1) * 4))) != 0;
     }
 
@@ -93,20 +96,25 @@ public:
      * if we need it.
      */
     void ALWAYS_INLINE enableComplementaryOutput(int ch) const {
-        tim->CCER |= (1 << ((ch-1 * 4) + 2));
+        if (ch < 1 || ch > 3 || (tim != &TIM1 && tim != &TIM8)) return;
+        tim->CCER |= (1 << (((ch - 1) * 4) + 2));
     }
     void ALWAYS_INLINE disableComplementaryOutput(int ch) const {
-        tim->CCER &= ~(1 << ((ch-1 * 4) + 2));
+        if (ch < 1 || ch > 3 || (tim != &TIM1 && tim != &TIM8)) return;
+        tim->CCER &= ~(1 << (((ch - 1) * 4) + 2));
     }
     void ALWAYS_INLINE invertComplementaryOutput(int ch) const {
-        tim->CCER ^= (1 << ((ch-1 * 4) + 3));
+        if (ch < 1 || ch > 3 || (tim != &TIM1 && tim != &TIM8)) return;
+        tim->CCER ^= (1 << (((ch - 1) * 4) + 3));
     }
 
     void ALWAYS_INLINE enableCompareCaptureIsr(int ch) const {
+        if (ch < 1 || ch > 4) return;
         tim->SR &= ~(1 << ch);  // clear pending ISR status
         tim->DIER |= (1 << ch);
     }
     void ALWAYS_INLINE disableCompareCaptureIsr(int ch) const {
+        if (ch < 1 || ch > 4) return;
         tim->DIER &= ~(1 << ch);
     }
     void ALWAYS_INLINE enableUpdateIsr() const {
@@ -121,6 +129,7 @@ public:
     }
 
     uint16_t ALWAYS_INLINE lastCapture(int ch) const {
+        if (ch < 1 || ch > 4) return 0;
         return tim->compareCapRegs[ch - 1].CCR;
     }
 
@@ -142,6 +151,7 @@ public:
     }
 
     void ALWAYS_INLINE setDuty(int ch, uint16_t duty) const {
+        if (ch < 1 || ch > 4) return;
         tim->compareCapRegs[ch - 1].CCR = duty;
     }
 

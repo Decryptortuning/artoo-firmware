@@ -97,6 +97,14 @@ bool SelfTest::checkAdjacentPinsForShorts(GPIOPin *pins, unsigned pincount)
      * in the middle. Otherwise, we assume lines are shorted.
      */
 
+    if (!pincount || pincount > 32) return false;
+    GPIOPin::Control controls[32];
+    bool outputs[32];
+    for (unsigned i = 0; i < pincount; ++i) {
+        controls[i] = pins[i].control();
+        outputs[i] = pins[i].isOutputHigh();
+    }
+    bool passed = true;
     for (unsigned i = 0; i < pincount; ++i) {
 
         if (i > 0) {
@@ -120,10 +128,12 @@ bool SelfTest::checkAdjacentPinsForShorts(GPIOPin *pins, unsigned pincount)
             Sys::waitForInterrupt();
         }
 
-        if (!pin.isHigh()) {
-            return false;
-        }
+        if (!pin.isHigh()) { passed = false; break; }
     }
 
-    return true;
+    for (unsigned i = 0; i < pincount; ++i) {
+        if (outputs[i]) pins[i].setHigh(); else pins[i].setLow();
+        pins[i].setControl(controls[i]);
+    }
+    return passed;
 }

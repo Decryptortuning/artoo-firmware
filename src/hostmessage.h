@@ -1,3 +1,6 @@
+#ifndef ARTOO_FACTORY_TESTS
+#define ARTOO_FACTORY_TESTS 0
+#endif
 #ifndef HOSTMESSAGE_H
 #define HOSTMESSAGE_H
 
@@ -51,6 +54,11 @@ struct HostMessage {
                                   static_cast<uint8_t>(mask >> 8)};
         return packet.delimitSlip() && packet.appendSlip(ButtonEvent) &&
             packet.appendSlip(payload, sizeof payload) && packet.delimitSlip();
+    }
+
+    static bool requestEnabled(unsigned id) {
+        return ARTOO_FACTORY_TESTS ||
+            (id != OutputTest && id != GpioTest && id != SelfTest && id != TestEvent);
     }
 
     static bool payloadLengthValid(unsigned id, unsigned length) {

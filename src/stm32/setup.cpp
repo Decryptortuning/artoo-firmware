@@ -27,6 +27,8 @@ extern unsigned     __bss_end;
 extern unsigned     __data_start;
 extern unsigned     __data_end;
 extern unsigned     __data_src;
+extern initFunc_t   __preinit_array_start;
+extern initFunc_t   __preinit_array_end;
 extern initFunc_t   __init_array_start;
 extern initFunc_t   __init_array_end;
 
@@ -43,9 +45,9 @@ extern "C" void _start()
      *   - 12 MHz HSE (xtal) osc
      *   - PLL x6 => 72 MHz
      *   - SYSCLK at 72 MHz
-     *   - HCLK at 36 MHz
-     *   - APB1 at 36 MHz (no divisor)
-     *   - APB2 at 36 MHz (no divisor)
+     *   - HCLK at 72 MHz
+     *   - APB1 at 36 MHz (divide by two)
+     *   - APB2 at 72 MHz (no divisor), ADC at 12 MHz
      *
      * Other things that depend on our clock setup:
      *
@@ -133,6 +135,9 @@ extern "C" void _start()
      * programmatically unpack data from flash to RAM, just like we
      * did above with the .data segment.
      */
+
+    for (initFunc_t *p = &__preinit_array_start; p != &__preinit_array_end; ++p)
+        p[0]();
 
     for (initFunc_t *p = &__init_array_start; p != &__init_array_end; p++)
         p[0]();

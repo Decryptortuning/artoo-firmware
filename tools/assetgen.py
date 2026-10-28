@@ -199,7 +199,7 @@ def convertFont(cfg_path, fontname, font_opts_str, palettes, cpp, hdr):
         writeImageBytes(rle(im.getdata(), glyph_name, palette), cpp)
         cpp.write("\n};\n\n")
 
-        font_glyphs_str.write("\n    { %s_data, %d, %d }," % (glyph_name, w, h))
+        font_glyphs_str.write("\n    { %s_data, %d, %d, sizeof(%s_data) }," % (glyph_name, w, h, glyph_name))
 
     cpp.write(font_glyphs_str.getvalue())
     cpp.write("\n};\n\n")
@@ -242,6 +242,7 @@ def convertFile(imgname, fin, palette, cpp, hdr):
     cpp.write("    0, // reserved\n")
     cpp.write("    %s_data,\n" % imgname)
     cpp.write("    &%s,\n" % palette.name)
+    cpp.write("    sizeof(%s_data), // encodedBytes\n" % imgname)
     cpp.write("};\n\n")
 
 

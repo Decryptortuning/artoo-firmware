@@ -28,7 +28,7 @@ CFLAGS  += -fno-common -ffunction-sections -fdata-sections -ffast-math
 ###############################################################################
 # C++ flags
 
-CXXFLAGS  += -std=c++11
+CXXFLAGS  += -std=c++11 -fstack-usage
 CXXFLAGS  += -Wextra -Wshadow -Wredundant-decls  -Weffc++
 CXXFLAGS  += -fno-common -ffunction-sections -fdata-sections -ffast-math
 CXXFLAGS  += -fno-exceptions -fno-threadsafe-statics -fno-rtti
@@ -39,6 +39,14 @@ CXXFLAGS  += -fno-exceptions -fno-threadsafe-statics -fno-rtti
 CPPFLAGS  += -Os -ggdb
 CPPFLAGS  += -Wall -Werror -Wundef
 CPPFLAGS  += -DMAVLINK_COMM_NUM_BUFFERS=1
+ifdef BOARD
+CPPFLAGS += -DBOARD=@(BOARD)
+endif
+ifeq (@(FACTORY_TESTS),y)
+CPPFLAGS += -DARTOO_FACTORY_TESTS=1
+else
+CPPFLAGS += -DARTOO_FACTORY_TESTS=0
+endif
 ifeq ($(SEMIHOSTING),yes)
 CPPFLAGS  += -DSEMIHOSTING
 endif

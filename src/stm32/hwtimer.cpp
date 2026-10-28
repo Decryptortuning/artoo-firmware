@@ -12,7 +12,12 @@ void HwTimer::init(uint16_t period_, uint16_t prescaler) const
         RCC.APB2RSTR = (1 << 11); // TIM1 reset
         RCC.APB2RSTR = 0;
 
-    } else if (tim >= &TIM2 && tim <= &TIM7) {
+    } else if (tim == &TIM8) {
+        RCC.APB2ENR |= (1u << 13);
+        RCC.APB2RSTR |= (1u << 13);
+        RCC.APB2RSTR &= ~(1u << 13);
+    } else if (reinterpret_cast<uintptr_t>(tim) >= reinterpret_cast<uintptr_t>(&TIM2) &&
+               reinterpret_cast<uintptr_t>(tim) <= reinterpret_cast<uintptr_t>(&TIM7)) {
         unsigned bit = 1 << ((((uintptr_t)tim) >> 10) & 7);
         RCC.APB1ENR |= bit; // TIM2-TIM7 enable
         RCC.APB1RSTR = bit; // TIM2-TIM7 reset
@@ -55,6 +60,9 @@ void HwTimer::deinit() const
     else if (tim == &TIM5) {
         RCC.APB1ENR &= ~(1 << 3); // TIM5 disable
     }
+    else if (tim == &TIM6) { RCC.APB1ENR &= ~(1u << 4); }
+    else if (tim == &TIM7) { RCC.APB1ENR &= ~(1u << 5); }
+    else if (tim == &TIM8) { RCC.APB2ENR &= ~(1u << 13); }
     else if (tim == &TIM1) {
         RCC.APB2ENR &= ~(1 << 11); // TIM1 disable
     }
@@ -63,6 +71,7 @@ void HwTimer::deinit() const
 // channels are numbered 1-4
 void HwTimer::configureChannelAsOutput(int ch, Polarity polarity, TimerMode timmode, OutputMode outmode, DmaMode dmamode) const
 {
+    if (ch < 1 || ch > 4 || (outmode == ComplementaryOutput && ch == 4)) return;
     uint8_t mode, pol;
     (void)dmamode;
 
@@ -86,6 +95,7 @@ void HwTimer::configureChannelAsOutput(int ch, Polarity polarity, TimerMode timm
 
 void HwTimer::configureChannelAsInput(int ch, InputCaptureEdge edge, uint8_t filterFreq, uint8_t prescaler) const
 {
+    if (ch < 1 || ch > 4) return;
     uint8_t mode =  (1 << 0) |       // configured as input, mapped on TI1
                     ((filterFreq & 0xF) << 4) |
                     ((prescaler & 0x3) << 2);

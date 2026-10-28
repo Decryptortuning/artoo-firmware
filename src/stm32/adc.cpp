@@ -13,8 +13,7 @@ void Adc::init(bool dma, TriggerSource trig)
         RCC.APB2ENR |= (1 << 9);
 
         if (dma) {
-            dmaChan = &DMA1.channels[0];    // DMA1, channel 1
-            Dma::initChannel(&DMA1, 0, dmaCallback, this);
+            dmaChan = Dma::initChannel(&DMA1, 0, dmaCallback, this);
         }
     }
     else if (hw == &ADC2) {
@@ -28,8 +27,7 @@ void Adc::init(bool dma, TriggerSource trig)
         RCC.APB2ENR |= (1 << 15);
 
         if (dma) {
-            dmaChan = &DMA2.channels[4];  // DMA2, channel 5
-            Dma::initChannel(&DMA2, 4, dmaCallback, this);
+            dmaChan = Dma::initChannel(&DMA2, 4, dmaCallback, this);
         }
     }
 
@@ -47,6 +45,7 @@ void Adc::init(bool dma, TriggerSource trig)
     hw->SMPR2 = 0;
 
     if (dma) {
+        if (!dmaChan) { hw->CR2 = 0; return; }
         dmaChan->CPAR = (uint32_t)&hw->DR;
         hw->CR2 |= (1 << 8);    // enable dma
     }
@@ -120,6 +119,7 @@ void Adc::beginSequence(unsigned len, uint16_t *samplebuf)
      * Must have been init'd with DMA enabled.
      */
 
+    if (!dmaChan || !samplebuf || !len) return;
     dmaChan->CNDTR = len;
     dmaChan->CMAR = (uint32_t)samplebuf;
     dmaChan->CCR =  (1 << 10) | // MSIZE - half-word

@@ -95,6 +95,10 @@ namespace Atomic {
 
 namespace Intrinsic {
 
+    static ALWAYS_INLINE bool BitIsSet(uint32_t value, unsigned bit) {
+        return bit < 32 && (value & (1u << bit));
+    }
+
     static ALWAYS_INLINE uint32_t POPCOUNT(uint32_t i) {
         // Returns the number of 1-bits in i.
         return __builtin_popcount(i);
@@ -102,7 +106,7 @@ namespace Intrinsic {
 
     static ALWAYS_INLINE uint32_t CLZ(uint32_t r) {
         // Count leading zeroes. One instruction on ARM.
-        return __builtin_clz(r);
+        return r ? __builtin_clz(r) : 32;
     }
 
     static ALWAYS_INLINE uint32_t LZ(uint32_t l) {
@@ -125,26 +129,23 @@ namespace Intrinsic {
     static ALWAYS_INLINE uint32_t CTZ(uint32_t r) {
         // Count trailing zeroes. Reference:
         // http://en.wikipedia.org/wiki/Find_first_set#Properties_and_relations
-        return 31 - CLZ(r & -r);
+        return r ? 31 - CLZ(r & -r) : 32;
     }
 
     static ALWAYS_INLINE uint32_t ROR(uint32_t a, uint32_t b) {
         // Rotate right. One instruction on ARM
-        if (b < 32)
-            return (a >> b) | (a << (32 - b));
-        else
-            return 0;
+        b &= 31;
+        return (a >> b) | (a << ((32 - b) & 31));
     }
 
     static ALWAYS_INLINE uint32_t ROL(uint32_t a, uint32_t b) {
         return ROR(a, 32 - b);
     }
 
-    // Fast 32-bit absolute value operation with no branching
+    // Defined 32-bit absolute value with saturating overflow.
     static ALWAYS_INLINE int32_t abs(int32_t x) {
-        // http://graphics.stanford.edu/~seander/bithacks.html#IntegerAbs
-        int32_t mask = x >> 31;
-        return (x + mask) ^ mask;
+        // Saturate the one magnitude which cannot be represented in int32_t.
+        return x == INT32_MIN ? INT32_MAX : (x < 0 ? -x : x);
     }
 
 } // namespace Intrinsic

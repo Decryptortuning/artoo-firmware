@@ -21,3 +21,5 @@ src/resources-gen.h
 
 .venv/
 build-once.sh
+
+*.su

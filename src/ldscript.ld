@@ -21,7 +21,7 @@ SECTIONS
      */
 
     .vectors : {
-        *(.vectors);
+        KEEP(*(.vectors));
     } >FLASH
 
     /*
@@ -51,8 +51,13 @@ SECTIONS
          */         
 
         . = ALIGN(4);
+        __preinit_array_start = .;
+        KEEP(*(.preinit_array));
+        KEEP(*(SORT_BY_INIT_PRIORITY(.preinit_array.*)));
+        __preinit_array_end = .;
         __init_array_start = .;
-        KEEP (*(.init_array));
+        KEEP(*(SORT_BY_INIT_PRIORITY(.init_array.*)));
+        KEEP(*(.init_array));
         __init_array_end = .;
 
         /*
@@ -84,8 +89,12 @@ SECTIONS
         . = ALIGN(4);
         __bss_start = .;
         *(.bss .bss.*);
+        *(COMMON);
+        . = ALIGN(8);
         __bss_end = .;
     } >RAM
+
+    .ARM.attributes 0 : { *(.ARM.attributes) }
 
     /*
      * Junk we don't want.
@@ -93,12 +102,21 @@ SECTIONS
 
     /DISCARD/ : {
         *(.note .note.* .comment .comment.*);
-        *(.ARM.*);      /* ARM EABI junk, especially exception handling tables */
+        *(.ARM.exidx* .ARM.extab*); /* exceptions/unwinding are disabled */
     }
 }
 
 /* 'end' needed to support semihosting */
-end = .;
+end = __bss_end;
+__heap_start = __bss_end;
+/* Minimum reserved stack capacity, not a measured worst-case stack claim. */
+__stack_reserve = 4096;
+__heap_end = _stack - __stack_reserve;
+ASSERT(ADDR(.vectors) == ORIGIN(FLASH), "vectors must start at flash base")
+ASSERT(SIZEOF(.vectors) == 304, "unexpected F103 vector table size")
+ASSERT((__data_src + SIZEOF(.data)) <= ORIGIN(FLASH) + LENGTH(FLASH), "parameter page overlap")
+ASSERT(__heap_start <= __heap_end, "static RAM exceeds reserved stack boundary")
+ASSERT((_stack & 7) == 0, "stack must be eight-byte aligned")
 
 /*
  * Memory mapped I/O addresses.

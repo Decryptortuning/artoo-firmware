@@ -136,9 +136,11 @@ bool HostProtocol::dispatchProduce()
         return true;
     }
 
+#if ARTOO_FACTORY_TESTS
     if (SelfTest::producePacket(txPacket)) {
         return true;
     }
+#endif
 
     return false;
 }
@@ -251,7 +253,7 @@ void HostProtocol::processPacket(const RxPacket &p)
     static_assert(sizeof(Params::StoredValues::rcSticks) == StickConfigBytes, "axis wire layout");
     static_assert(sizeof(Params::SweepConfig) == SweepConfigBytes, "sweep wire layout");
     static_assert(sizeof(Params::StoredValues) == 172, "persistent/host parameter layout");
-    if (p.isEmpty() || !p.ok() || !payloadValid(p.data()[0], p.data() + 1, p.payloadLen())) {
+    if (p.isEmpty() || !p.ok() || !requestEnabled(p.data()[0]) || !payloadValid(p.data()[0], p.data() + 1, p.payloadLen())) {
         ++stats.rejectedFrames;
         return;
     }
@@ -325,7 +327,9 @@ void HostProtocol::processPacket(const RxPacket &p)
         break;
 
     case OutputTest:
+#if ARTOO_FACTORY_TESTS
         FactoryTest::onOutputTest(&bytes[1], p.payloadLen());
+#endif
         break;
 
     case SetShotInfo: {
@@ -346,19 +350,24 @@ void HostProtocol::processPacket(const RxPacket &p)
         break;
 
     case SelfTest:
+#if ARTOO_FACTORY_TESTS
         static const uint64_t SelfTestMagic = 0x73656c6674657374;
         if (p.payloadLen() >= sizeof(SelfTestMagic) &&
             memcmp(&bytes[1], &SelfTestMagic, sizeof SelfTestMagic) == 0)
         {
             SelfTest::checkForShorts();
         }
+#endif
         break;
 
     case GpioTest:
+#if ARTOO_FACTORY_TESTS
         FactoryTest::onGpioTest(&bytes[1], p.payloadLen());
+#endif
         break;
 
     case TestEvent:
+#if ARTOO_FACTORY_TESTS
         if (p.payloadLen() >= 1){
             if (Event::isValid(bytes[1])) {
                 Event::ID event = static_cast<Event::ID>(bytes[1]);
@@ -367,6 +376,7 @@ void HostProtocol::processPacket(const RxPacket &p)
                 DBG(("[host_protocol.cpp] Received event is invalid.\n"));
             }
         }
+#endif
         break;
 
     case SetTelemUnits:

@@ -77,6 +77,11 @@ class GPIOPin {
         return (port()->ODR & bit()) == 0;
     }
 
+    Control control() const {
+        const unsigned index = pin();
+        const uint32_t reg = index < 8 ? port()->CRL : port()->CRH;
+        return static_cast<Control>((reg >> ((index & 7) * 4)) & 15);
+    }
     void setControl(Control c) const;
     void irqInit() const;
 

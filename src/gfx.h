@@ -19,7 +19,7 @@ public:
 
         ALWAYS_INLINE uint16_t color(uint8_t idx) const {
             ASSERT(idx <= maxIdx);
-            return colors[idx];
+            return colors[idx <= maxIdx ? idx : 0];
         }
     };
 
@@ -30,12 +30,14 @@ public:
         uint8_t reserved;
         const void *data;
         const ImagePalette *palette;
+        uint32_t encodedBytes;
     };
 
     struct GlyphAsset {
         const uint8_t *data;    // variable length
         uint8_t width;
         uint8_t height;
+        uint16_t encodedBytes; // uses existing ARM struct padding
         // format is common to font that contains this glyph
     };
 
@@ -173,8 +175,8 @@ public:
     static void writeCanvasCenterJustified(uint16_t y, const char *s, const FontAsset & font, uint16_t line_spacing_h, uint16_t *color_fg, uint16_t *color_bg);
 
 private:
-    static void drawBitmapBytes(int16_t x, int16_t y, ImageFormat fmt, const ImagePalette *p, const uint8_t *bytes, unsigned w, unsigned h);
-    static void drawBitmapBytes(int16_t x, int16_t y, ImageFormat fmt, const ImagePalette *p, const uint8_t *b, unsigned w, unsigned h, uint16_t *color_fg, uint16_t *color_bg);
+    static void drawBitmapBytes(int16_t x, int16_t y, ImageFormat fmt, const ImagePalette *p, const uint8_t *bytes, unsigned encodedBytes, unsigned w, unsigned h);
+    static void drawBitmapBytes(int16_t x, int16_t y, ImageFormat fmt, const ImagePalette *p, const uint8_t *b, unsigned encodedBytes, unsigned w, unsigned h, uint16_t *color_fg, uint16_t *color_bg);
 };
 
 #endif // GFX_H
