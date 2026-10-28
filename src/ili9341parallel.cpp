@@ -186,11 +186,16 @@ void ILI9341Parallel::setBacklight(unsigned percent)
      * Set the pwm driving the LED backlight to the given percent.
      */
 
-    ASSERT(percent <= 100);
-
+    percent = MIN(percent, 100u);
+#if (BOARD >= BOARD_DVT)
     HwTimer tim(&LED_PWM_TIM);
     uint16_t duty = percent * tim.period() / 100;
     tim.setDuty(DISPLAY_LED_PWM_CH, duty);
+#else
+    // BB03 has the same digital on/off semantics as enable/disableBacklight.
+    if (percent) DISPLAY_LED_GPIO.setHigh();
+    else DISPLAY_LED_GPIO.setLow();
+#endif
 }
 
 void ILI9341Parallel::shutdown()
