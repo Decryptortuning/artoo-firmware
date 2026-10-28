@@ -312,4 +312,5 @@ void ButtonManager::shutdown()
     for (unsigned i = 0; i < arraysize(buttons); ++i) {
         if (i != Io::ButtonPower) buttons[i].disableIRQ();
     }
+    setBacklight(0);
 }
