@@ -55,3 +55,33 @@ They do not overwrite the qualified build outputs. A separate coordinated
 Renode harness in the integration repository owns startup/constructor and
 bounded foreground-task smoke checks against an immutable ELF; it does not
 emulate the full controller or qualify physical peripherals.
+
+## Tamp asset generation
+
+Image and glyph descriptors retain their sizes. The generator selects ordinary
+palette RLE, Tamp-compressed palette indices or Tamp-compressed RLE independently
+for each asset, including envelope bytes in its size decision. Palette order,
+font geometry, RGB565 colors and the transparency key retain their baseline
+meaning. `--uncompressed` is a host reference-generation option; normal builds
+produce packed assets.
+
+The pinned portable Tamp C sources and MIT/Apache licenses are in `vendor/tamp`.
+Only decoder/common code links into firmware. Asset generation checks the vendor
+hash manifest and builds the host-only compressor in a temporary directory with
+native GCC; it does not install or import the Tamp Python package. The qualified
+GCC/Pillow versions remain unchanged. A native C compiler is now required for
+asset generation as well as the existing native test suites.
+
+The foreground decoder uses one shared static 256-byte dictionary and a 32-byte
+output chunk, rejecting ISR and recursive entry. Each asset resets its dictionary.
+Envelope lengths, W8/extended/no-custom-dictionary headers, decoded-byte limits,
+palette indices, pixel quota and canonical tail padding are checked. A malformed
+stream may draw a validated prefix before failing; there is no full framebuffer
+or promise of atomic display replacement. Streams are bounded, not authenticated:
+a bit change can still encode a different valid image.
+
+`tests/check_graphics.py` regenerates the immutable pre-compression baseline in a
+temporary directory and compares every output pixel through both the actual
+mixed decoder and Gfx sink, including tinted glyphs. It exercises 1/7/32-byte
+chunks, truncation, header/length corruption, expansion limits, ISR/reentry and
+fuzz cases under sanitizers. Hardware display latency remains an acceptance gate.

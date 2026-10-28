@@ -11,6 +11,7 @@ public:
     enum ImageFormat {
         ImgFmtRaw,      // uncompressed
         ImgFmtRle,      // run length encoded
+        ImgFmtPacked,   // per-asset raw RLE / Tamp index / Tamp RLE envelope
     };
 
     struct ImagePalette {

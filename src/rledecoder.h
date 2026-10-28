@@ -2,29 +2,35 @@
 #define RLEDECODER_H
 #include <stdint.h>
 namespace RleDecoder {
-// The existing palette RLE format, with explicit encoded and pixel budgets.
-// emit(index,count) receives only validated palette indices/runs.
-template<typename Emit>
-bool decode(const uint8_t *data, unsigned bytes, unsigned pixels, unsigned maxIndex, Emit emit) {
-    unsigned offset = 0, remaining = pixels;
-    while (offset < bytes) {
-        const int8_t header = static_cast<int8_t>(data[offset++]);
-        if (header == -128) return remaining == 0 && offset == bytes;
-        const unsigned count = header < 0 ? 1 - int(header) : unsigned(header) + 1;
-        if (count > remaining) return false;
-        if (header < 0) {
-            if (offset == bytes || data[offset] > maxIndex) return false;
-            emit(data[offset++], count);
-        } else {
-            if (count > bytes - offset) return false;
-            for (unsigned i = 0; i < count; ++i) {
-                if (data[offset] > maxIndex) return false;
-                emit(data[offset++], 1);
-            }
+// Incremental parser preserves count/index/EOF validation across Tamp chunks.
+class Stream {
+    unsigned remaining,maximum,count;
+    bool repeat,ended;
+public:
+    Stream(unsigned pixels,unsigned maxIndex) : remaining(pixels),maximum(maxIndex),count(0),repeat(false),ended(false) {}
+    template<typename Emit> bool put(uint8_t value,Emit emit) {
+        if (ended) return false;
+        if (!count) {
+            const int8_t header=static_cast<int8_t>(value);
+            if (header==-128) { ended=true; return remaining==0; }
+            repeat=header<0;
+            count=repeat ? 1-int(header) : unsigned(header)+1;
+            return count<=remaining;
         }
-        remaining -= count;
+        if (value>maximum) return false;
+        const unsigned pixels=repeat ? count : 1;
+        emit(value,pixels);
+        remaining-=pixels;
+        count-=pixels;
+        return true;
     }
-    return false; // missing EOF
+    bool finish() const { return ended && remaining==0 && count==0; }
+};
+template<typename Emit>
+bool decode(const uint8_t *data,unsigned bytes,unsigned pixels,unsigned maxIndex,Emit emit) {
+    Stream stream(pixels,maxIndex);
+    for (unsigned i=0;i<bytes;++i) if (!stream.put(data[i],emit)) return false;
+    return stream.finish();
 }
 }
 #endif

@@ -1,0 +1,17 @@
+{
+  "repository": "https://github.com/BrianPugh/tamp",
+  "revision": "5279e7cf2322eb0a5f85acb9ca6de6d1b77561ea",
+  "source_path": "tamp/_c_src/tamp",
+  "license": "MIT OR Apache-2.0",
+  "modifications": "None; local wrappers/configuration live outside vendor directory. Compressor is host-only.",
+  "sha256": {
+    "LICENSE-APACHE": "f14b20048c12393cb9920065c47fadc030210b0f9cab9849ce0a68a063ededc5",
+    "LICENSE-MIT": "06f0daaa2118afe32749658c3acfaced37caf8bf2a69e0e75fc452434cb7cc99",
+    "common.c": "b7cf00c4f88581d5504d37273d20c4fa28b4bbcb3fa7b8328cb7916798185b4d",
+    "common.h": "2d2f421b5cc15b81920a3aea814943a664e34b7191fce4981f85c06dbae0a84d",
+    "compressor.c": "71b4fc9d60b165af5f5b8b194c71a4c9d458e41e244c7ef4720ba90379ace41c",
+    "compressor.h": "b07c8de6881f097bd5b4b246717cba8d961d357be10c01828ee974026b3a450e",
+    "decompressor.c": "242eb28260c90e61090b8e27f93428ea077f1205da1b9ec92401b10edb7b206d",
+    "decompressor.h": "ff70f781773b9af65ed6fd513bd60d6667fc656e15f7b5e0234fea0ca8d25e77"
+  }
+}

@@ -38,6 +38,7 @@ names = subprocess.check_output(['arm-none-eabi-nm','-C',str(args.elf)],text=Tru
 for handler in ('FactoryTest::onOutputTest','FactoryTest::onGpioTest','SelfTest::checkForShorts'):
     assert (handler in names) == args.factory, handler
 assert ' _sbrk' in names
+assert 'tamp_compressor_' not in names, 'host compressor linked into firmware'
 assert not re.search(r'__atomic_\w+_[1248]',names), 'unexpected out-of-line atomic runtime'
 frames = []
 for path in args.stack_dir.glob('*.su'):

@@ -1,5 +1,5 @@
 #include "gfx.h"
-#include "rledecoder.h"
+#include "assetdecoder.h"
 #include "textlines.h"
 #include "ili9341parallel.h"
 
@@ -69,17 +69,21 @@ void Gfx::drawBitmapBytes(int16_t x, int16_t y, ImageFormat fmt, const ImagePale
 
 void Gfx::drawBitmapBytes(int16_t x, int16_t y, ImageFormat fmt, const ImagePalette *p, const uint8_t *b, unsigned encodedBytes, unsigned w, unsigned h, uint16_t *color_fg, uint16_t *color_bg)
 {
-    if (fmt != ImgFmtRle || !p || !b || !w || !h || w > WIDTH || h > HEIGHT) return;
+    if ((fmt != ImgFmtRle && fmt != ImgFmtPacked) || !p || !b || !w || !h || w > WIDTH || h > HEIGHT) return;
     beginDrawingRegion(Rect(x, y, w, h));
-    FontColorConverter converter;
-    const bool grayscale = color_fg && color_bg;
-    if (grayscale) converter.init(*color_bg, *color_fg);
-    RleDecoder::decode(b, encodedBytes, w * h, p->maxIdx,
-        [&](uint8_t index, unsigned count) {
-            uint16_t pixel = p->color(index);
-            if (grayscale) pixel = converter.grayToColor(pixel);
+    struct RenderContext {
+        const ImagePalette *palette;
+        FontColorConverter converter;
+        bool grayscale;
+    } context = {p, {}, bool(color_fg && color_bg)};
+    if (context.grayscale) context.converter.init(*color_bg, *color_fg);
+    AssetDecoder::decode(fmt,b,encodedBytes,w*h,p->maxIdx,
+        [](void *opaque,uint8_t index,unsigned count) {
+            RenderContext &render=*static_cast<RenderContext*>(opaque);
+            uint16_t pixel=render.palette->color(index);
+            if (render.grayscale) pixel=render.converter.grayToColor(pixel);
             while (count) {
-                const unsigned chunk = MIN(count, 8);
+                const unsigned chunk=MIN(count,8);
                 switch (chunk) {
                 case 8: drawPixelAtCursor(pixel); // fall through
                 case 7: drawPixelAtCursor(pixel); // fall through
@@ -91,9 +95,9 @@ void Gfx::drawBitmapBytes(int16_t x, int16_t y, ImageFormat fmt, const ImagePale
                 case 1: drawPixelAtCursor(pixel);
                 case 0: break;
                 }
-                count -= chunk;
+                count-=chunk;
             }
-        });
+        },&context);
 }
 
 uint16_t Gfx::write(uint16_t x, uint16_t y, const char *s, const FontAsset & font)

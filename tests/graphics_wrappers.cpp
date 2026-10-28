@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string>
+bool artooTestInInterrupt() { return false; }
 ILI9341Parallel ILI9341Parallel::lcd;
 std::vector<Gfx::Rect> ILI9341Parallel::regions;
 std::vector<uint16_t> ILI9341Parallel::pixels;

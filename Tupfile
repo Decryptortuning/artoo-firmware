@@ -21,6 +21,7 @@ OBJDUMP := $(PREFIX)-objdump
 ###############################################################################
 # C flags
 
+CFLAGS  += -std=c99 -fstack-usage
 CFLAGS  += -Wextra -Wshadow -Wimplicit-function-declaration
 CFLAGS  += -Wredundant-decls -Wmissing-prototypes -Wstrict-prototypes
 CFLAGS  += -fno-common -ffunction-sections -fdata-sections -ffast-math
@@ -39,6 +40,7 @@ CXXFLAGS  += -fno-exceptions -fno-threadsafe-statics -fno-rtti
 CPPFLAGS  += -Os -ggdb
 CPPFLAGS  += -Wall -Werror -Wundef
 CPPFLAGS  += -DMAVLINK_COMM_NUM_BUFFERS=1
+CPPFLAGS  += -include src/tampconfig.h
 ifdef BOARD
 CPPFLAGS += -DBOARD=@(BOARD)
 endif
@@ -87,6 +89,9 @@ CPPSRCS := src/*.cpp src/stm32/*.cpp
 
 # generate resources
 : |> python tools/assetgen.py resources/assets.cfg src |> src/resources-gen.cpp src/resources-gen.h
+
+# Only the portable decoder/common C code is linked into firmware.
+: foreach vendor/tamp/common.c vendor/tamp/decompressor.c |> $(CC) $(CFLAGS) $(CPPFLAGS) $(ARCH_FLAGS) -c %f -o %o |> $(OBJDIR)/tamp-%B.o
 
 # compile all cpp files
 : foreach $(CPPSRCS) | src/resources-gen.h |> $(CXX) $(CXXFLAGS) $(CPPFLAGS) $(ARCH_FLAGS) -c %f -o %o |> $(OBJDIR)/%B.o

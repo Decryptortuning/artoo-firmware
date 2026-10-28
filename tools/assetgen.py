@@ -8,6 +8,7 @@ import sys, datetime, os
 import configparser
 import itertools
 import assetlimits
+import assetcodec
 from io import StringIO
 from PIL import Image, ImageFont, ImageDraw
 
@@ -202,6 +203,8 @@ def convertFont(cfg_path, fontname, font_opts_str, palettes, cpp, hdr):
         glyph_name = "%s_glyph_%02x" % (fontname, ord(g))
         cpp.write("static const uint8_t %s_data[] = {" % (glyph_name))
         encoded = rle(im.getdata(), glyph_name, palette)
+        if encoder:
+            encoded = encoder.pack(encoded, [palette.pix_idx(pixel) for pixel in im.getdata()])
         assetlimits.glyph(w, h, len(encoded))
         writeImageBytes(encoded, cpp)
         cpp.write("\n};\n\n")
@@ -216,7 +219,7 @@ def convertFont(cfg_path, fontname, font_opts_str, palettes, cpp, hdr):
     cpp.write("    %d, // glyphCount\n" % len(glyphs))
     cpp.write("    %d, // ascent\n" % ascent)
     cpp.write("    %d, // descent\n" % descent)
-    cpp.write("    Gfx::ImgFmtRle, // format\n")
+    cpp.write("    Gfx::%s, // format\n" % ("ImgFmtPacked" if encoder else "ImgFmtRle"))
     cpp.write("    '%c', // start_ch\n" % start_ch)
     cpp.write("    0,  // res0\n")
     cpp.write("    0,  // res1\n")
@@ -236,14 +239,17 @@ def convertFile(imgname, fin, palette, cpp, hdr):
     hdr.write("extern const Gfx::ImageAsset %s;\n" % imgname)
     cpp.write("static const uint8_t %s_data[] = {" % imgname)
 
-    writeImageBytes(rle(img.getdata(), imgname, palette), cpp)
+    encoded = rle(img.getdata(), imgname, palette)
+    if encoder:
+        encoded = encoder.pack(encoded, [palette.pix_idx(pixel) for pixel in img.getdata()])
+    writeImageBytes(encoded, cpp)
 
     cpp.write("\n};\n\n")
 
     cpp.write("extern const Gfx::ImageAsset %s = {\n" % imgname)
     cpp.write("    %d, // width\n" % w)
     cpp.write("    %d, // height\n" % h)
-    cpp.write("    Gfx::ImgFmtRle, // format\n")
+    cpp.write("    Gfx::%s, // format\n" % ("ImgFmtPacked" if encoder else "ImgFmtRle"))
     cpp.write("    0, // reserved\n")
     cpp.write("    %s_data,\n" % imgname)
     cpp.write("    &%s,\n" % palette.name)
@@ -279,6 +285,8 @@ def checkPilVersion():
 #
 
 checkPilVersion()
+encoder = None if "--uncompressed" in sys.argv else assetcodec.Encoder()
+
 
 cfgfile = os.path.join(os.getcwd(), sys.argv[1])
 outdir = os.path.join(os.getcwd(), sys.argv[2])
