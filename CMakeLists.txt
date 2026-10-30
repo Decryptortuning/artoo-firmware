@@ -60,7 +60,7 @@ add_custom_target(artoo_assets DEPENDS "${gen}/resources-gen.cpp" "${gen}/resour
 add_dependencies(artoo_assets artoo_inputs)
 # Tup linked basename-sorted object files, including the generated resources and
 # version. Keep that order to preserve init-array order during the parity wave.
-set(all_sources ${ARTOO_CPP_SOURCES} "${gen}/resources-gen.cpp" "${gen}/version.cpp"
+set(all_sources ${ARTOO_CPP_SOURCES} "${gen}/resources-gen.cpp"
   vendor/tamp/common.c vendor/tamp/decompressor.c)
 set(ordered_sources "")
 foreach(source IN LISTS all_sources)
@@ -68,7 +68,7 @@ foreach(source IN LISTS all_sources)
   if(source MATCHES "^vendor/tamp/")
     set(stem "tamp-${stem}")
   endif()
-  list(APPEND ordered_sources "${stem}|${source}")
+  list(APPEND ordered_sources "${stem}.o|${source}")
 endforeach()
 list(SORT ordered_sources)
 set(all_sources "")
@@ -77,18 +77,27 @@ foreach(pair IN LISTS ordered_sources)
   list(APPEND all_sources "${source}")
 endforeach()
 add_executable(artoo ${all_sources})
+add_library(artoo_version OBJECT "${gen}/version.cpp")
+add_dependencies(artoo_version artoo_inputs)
 add_dependencies(artoo artoo_assets artoo_inputs)
+add_dependencies(artoo artoo_version)
 set_target_properties(artoo PROPERTIES SUFFIX ".elf" LINKER_LANGUAGE C C_STANDARD 99 C_STANDARD_REQUIRED YES C_EXTENSIONS NO CXX_STANDARD 11 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
-target_include_directories(artoo PRIVATE "${gen}" "${CMAKE_SOURCE_DIR}/src")
-target_compile_definitions(artoo PRIVATE BOARD=${board_id} ARTOO_FACTORY_TESTS=${factory} ARTOO_BENCH_NO_IDLE=${bench} MAVLINK_COMM_NUM_BUFFERS=1)
-target_compile_options(artoo PRIVATE -mthumb -mcpu=cortex-m3 -msoft-float -Os -ggdb -fstack-usage
+set_target_properties(artoo_version PROPERTIES CXX_STANDARD 11 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+foreach(compile_target artoo artoo_version)
+target_include_directories(${compile_target} PRIVATE "${gen}" "${CMAKE_SOURCE_DIR}/src")
+target_compile_definitions(${compile_target} PRIVATE BOARD=${board_id} ARTOO_FACTORY_TESTS=${factory} ARTOO_BENCH_NO_IDLE=${bench} MAVLINK_COMM_NUM_BUFFERS=1)
+target_compile_options(${compile_target} PRIVATE -mthumb -mcpu=cortex-m3 -msoft-float -Os -ggdb -fstack-usage
   -Wall -Werror -Wundef -Wextra -Wshadow -Wredundant-decls -fno-common -ffunction-sections -fdata-sections -ffast-math
   -include "${CMAKE_SOURCE_DIR}/src/tampconfig.h"
   "$<$<COMPILE_LANGUAGE:C>:-Wimplicit-function-declaration;-Wmissing-prototypes;-Wstrict-prototypes>"
   "$<$<COMPILE_LANGUAGE:CXX>:-Weffc++;-fno-exceptions;-fno-threadsafe-statics;-fno-rtti>")
+endforeach()
 target_link_options(artoo PRIVATE -mthumb -mcpu=cortex-m3 -msoft-float --static --specs=nano.specs -nostartfiles -u _printf_float
   "-T${CMAKE_SOURCE_DIR}/src/ldscript.ld" "-Wl,-Map=${CMAKE_BINARY_DIR}/artoo.map,--cref,--gc-sections,-u,IVT")
-target_link_libraries(artoo PRIVATE -Wl,--start-group c m gcc nosys -Wl,--end-group)
+# Tup emits its version object after the library group. Passing the owned object
+# as a linker argument preserves that placement (CMake otherwise moves object
+# expressions ahead of all libraries). It is not a second compilation graph.
+target_link_libraries(artoo PRIVATE -Wl,--start-group c m gcc nosys -Wl,--end-group "-Wl,$<TARGET_OBJECTS:artoo_version>")
 set_property(TARGET artoo APPEND PROPERTY LINK_DEPENDS "${CMAKE_SOURCE_DIR}/src/ldscript.ld")
 add_custom_command(OUTPUT "${CMAKE_BINARY_DIR}/artoo.bin" "${CMAKE_BINARY_DIR}/artoo.hex"
   COMMAND "${CMAKE_OBJCOPY}" -O binary $<TARGET_FILE:artoo> "${CMAKE_BINARY_DIR}/artoo.bin"
