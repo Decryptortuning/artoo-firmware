@@ -10,6 +10,7 @@
 #include "txschedule.h"
 #include "stm32/usart.h"
 #include "stm32/vectors.h"
+#include "stm32/systime.h"
 
 #include "mavlink/c_library/ardupilotmega/mavlink.h"
 
@@ -92,7 +93,7 @@ private:
     MsgID hostRequest;
     bool diagnosticsPending, diagnosticsSeen;
     uint16_t diagnosticsToken;
-    uint64_t diagnosticsLast;
+    SysTime::Ticks diagnosticsLast;
     bool produceDiagnostics(Packet &p);
 };
 

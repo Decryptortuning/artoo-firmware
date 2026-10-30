@@ -279,7 +279,7 @@ void HostProtocol::processPacket(const RxPacket &p)
         return;
     }
     if (p.data()[0] == HostMessage::Diagnostics) {
-        const uint64_t now = SysTime::now();
+        const SysTime::Ticks now = SysTime::now();
         if (!diagnosticsPending && (!diagnosticsSeen || now - diagnosticsLast >= SysTime::sTicks(1))) {
             diagnosticsToken = p.data()[2] | (static_cast<uint16_t>(p.data()[3]) << 8);
             diagnosticsLast = now;
