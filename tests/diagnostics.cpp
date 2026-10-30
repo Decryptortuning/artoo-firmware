@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
+#include <initializer_list>
 int main() {
     uint32_t words[16] = {};
     assert(!DiagnosticRecord::valid(words));
@@ -24,6 +25,17 @@ int main() {
             words[i] ^= 1u << bit;
         }
     }
+    words[13] = 2;
+    for (unsigned stage = 1; stage <= 10; ++stage) {
+        words[14] = stage; words[15] = DiagnosticRecord::checksum(words);
+        assert(DiagnosticRecord::valid(words));
+    }
+    for (unsigned stage : {0u,11u,0xffffffffu}) {
+        words[14] = stage; words[15] = DiagnosticRecord::checksum(words);
+        assert(!DiagnosticRecord::valid(words));
+    }
+    words[14] = 1; words[13] = 3; words[15] = DiagnosticRecord::checksum(words);
+    assert(!DiagnosticRecord::valid(words));
     words[0] = 0; // Partial commit must never appear valid.
     assert(!DiagnosticRecord::valid(words));
     assert(DiagnosticRecord::stackValid(0x20000000,0xfffffff9,0));

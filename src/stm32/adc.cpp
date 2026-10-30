@@ -4,8 +4,11 @@
 
 #include "gpio.h"
 
-void Adc::init(bool dma, TriggerSource trig)
+StartupFailure::Stage Adc::init(bool dma, TriggerSource trig)
 {
+    ready = false;
+    if (dmaChan) dmaChan->CCR = 0;
+    dmaChan = NULL;
     // enable peripheral clock
     if (hw == &ADC1) {
         RCC.APB2RSTR |= (1 << 9);
@@ -45,8 +48,8 @@ void Adc::init(bool dma, TriggerSource trig)
     hw->SMPR2 = 0;
 
     if (dma) {
-        if (!dmaChan) { hw->CR2 = 0; return; }
-        dmaChan->CPAR = (uint32_t)&hw->DR;
+        if (!dmaChan) { hw->CR2 = 0; return StartupFailure::AdcDma; }
+        dmaChan->CPAR = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&hw->DR));
         hw->CR2 |= (1 << 8);    // enable dma
     }
 
@@ -56,14 +59,22 @@ void Adc::init(bool dma, TriggerSource trig)
     // reset calibration & wait for it to complete
     const uint32_t resetCalibration = (1 << 3);
     hw->CR2 |= resetCalibration;
-    while (hw->CR2 & resetCalibration)
-        ;
+    if (!StartupFailure::waitMasked(hw->CR2, resetCalibration, 0)) {
+        hw->CR2 = 0;
+        if (dmaChan) dmaChan->CCR = 0;
+        return StartupFailure::AdcResetCalibration;
+    }
 
     // perform calibration & wait for it to complete
     const uint32_t calibrate = (1 << 2);
     hw->CR2 |= calibrate;
-    while (hw->CR2 & calibrate)
-        ;
+    if (!StartupFailure::waitMasked(hw->CR2, calibrate, 0)) {
+        hw->CR2 = 0;
+        if (dmaChan) dmaChan->CCR = 0;
+        return StartupFailure::AdcCalibration;
+    }
+    ready = true;
+    return StartupFailure::None;
 }
 
 void Adc::setSampleRate(uint8_t channel, SampleRate rate)
@@ -119,9 +130,9 @@ void Adc::beginSequence(unsigned len, uint16_t *samplebuf)
      * Must have been init'd with DMA enabled.
      */
 
-    if (!dmaChan || !samplebuf || !len) return;
+    if (!ready || !dmaChan || !samplebuf || !len) return;
     dmaChan->CNDTR = len;
-    dmaChan->CMAR = (uint32_t)samplebuf;
+    dmaChan->CMAR = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(samplebuf));
     dmaChan->CCR =  (1 << 10) | // MSIZE - half-word
                     (1 << 8) |  // PSIZE - half-word
                     (1 << 7) |  // MINC - memory pointer increment
@@ -134,18 +145,19 @@ void Adc::beginSequence(unsigned len, uint16_t *samplebuf)
     hw->CR2 |= ((1 << 22) | (1 << 20)); // SWSTART the conversion
 }
 
-uint16_t Adc::sampleSync(uint8_t channel)
+bool Adc::sampleSync(uint8_t channel, uint16_t &sample)
 {
     /*
      * Inefficient but simple synchronous sample.
      */
 
+    if (!ready) return false;
     hw->SQR3 = channel;
 
     hw->CR2 |= (1 << 22);           // SWSTART the conversion
-    while (!(hw->SR & (1 << 1)))    // wait for EOC
-        ;
-    return hw->DR;
+    if (!StartupFailure::waitMasked(hw->SR, 1u << 1, 1u << 1)) return false;
+    sample = hw->DR;
+    return true;
 }
 
 void Adc::dmaCallback(void *p, uint8_t flags)

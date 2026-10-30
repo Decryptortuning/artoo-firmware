@@ -20,6 +20,7 @@ extern "C" {
 extern volatile uint32_t artoo_fault_active;
 extern volatile uint32_t artoo_current_task;
 extern volatile uint32_t artoo_fault_record[16];
+void artoo_capture_failure(uint32_t stage) __attribute__((noreturn));
 void artoo_fault_halt() __attribute__((noreturn));
 void artoo_capture_fault(uint32_t *sp, uint32_t excReturn, uint32_t ipsr) __attribute__((noreturn));
 }

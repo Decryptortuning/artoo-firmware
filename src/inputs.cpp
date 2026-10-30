@@ -31,16 +31,18 @@ StickAxis Inputs::sticks[] = {
     StickAxis(Io::AdcGimbalRate, StickAxis::Reverse, 0)                             // StickGimbalRate
 };
 
-void Inputs::init()
+StartupFailure::Stage Inputs::init()
 {
     Dsm::instance.init();
-    initADC();
-    initStickValidState();
     captureFault = true;
+    const StartupFailure::Stage status = initADC();
+    initStickValidState();
+    if (status != StartupFailure::None) return status;
     beginAdcCapture();
+    return StartupFailure::None;
 }
 
-void Inputs::initADC()
+StartupFailure::Stage Inputs::initADC()
 {
     GPIOPin adcPins[] = {
         STICK_0_GPIO,
@@ -78,13 +80,15 @@ void Inputs::initADC()
 #endif
     };
 
-    Adc1.init(true);
+    const StartupFailure::Stage status = Adc1.init(true);
+    if (status != StartupFailure::None) return status;
     Adc1.setRegularSequence(arraysize(adcChannels), adcChannels);
     for (unsigned i = 0; i < arraysize(adcChannels); ++i) {
         Adc1.setSampleRate(adcChannels[i], Adc::SampleRate_239_5);
     }
 
     loadStickParams();
+    return StartupFailure::None;
 }
 
 void Inputs::loadStickParams()

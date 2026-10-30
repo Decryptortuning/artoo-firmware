@@ -19,6 +19,28 @@ extern "C" __attribute__((noinline, noreturn)) void artoo_fault_halt()
     for (;;) __asm__ volatile("nop");
 }
 
+extern "C" void artoo_capture_failure(uint32_t stage)
+{
+    __asm__ volatile("cpsid i" ::: "memory");
+    volatile uint32_t *record = artoo_fault_record;
+    record[0] = 0;
+    record[1] = DiagnosticRecord::Format;
+    for (unsigned i = 2; i < 12; ++i) record[i] = 0;
+    record[12] = artoo_current_task;
+    record[13] = 2; // Software-detected startup failure; no exception frame.
+    record[14] = stage;
+    uint32_t hash = 2166136261u;
+    for (unsigned i = 1; i < 15; ++i) {
+        const uint32_t word = record[i];
+        for (unsigned b = 0; b < 4; ++b) { hash ^= (word >> (8*b)) & 255u; hash *= 16777619u; }
+    }
+    record[15] = hash;
+    __asm__ volatile("dmb" ::: "memory");
+    record[0] = DiagnosticRecord::Magic;
+    __asm__ volatile("dsb" ::: "memory");
+    artoo_fault_halt();
+}
+
 extern "C" void artoo_capture_fault(uint32_t *sp, uint32_t excReturn, uint32_t ipsr)
 {
     volatile uint32_t *record = artoo_fault_record;

@@ -16,8 +16,10 @@ inline uint32_t checksum(const uint32_t *words) {
     return hash;
 }
 inline bool valid(const uint32_t *words) {
-    return words[0] == Magic && words[1] == Format && words[14] == 0 &&
-        (words[13] & ~1u) == 0 && words[15] == checksum(words);
+    const bool exception = words[14] == 0 && (words[13] & ~1u) == 0;
+    const bool software = words[13] == 2 && words[14] >= 1 && words[14] <= 10;
+    return words[0] == Magic && words[1] == Format && (exception || software) &&
+        words[15] == checksum(words);
 }
 inline bool stackValid(uintptr_t sp, uint32_t excReturn, uint32_t cfsr) {
     // Basic Cortex-M3 frame; reject failed stacking/unstacking and invalid EXC_RETURN.

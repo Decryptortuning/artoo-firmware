@@ -13,7 +13,7 @@
 class Inputs
 {
 public:
-    static void init();
+    static StartupFailure::Stage init();
     static void loadStickParams();
 
     // only intended to be called by heartbeat task
@@ -84,7 +84,7 @@ private:
     static uint16_t adcSamples[Io::AdcCount];
     static uint16_t completedSamples[Io::AdcCount];
 
-    static void initADC();
+    static StartupFailure::Stage initADC();
 
     static StickAxis sticks[];
 

@@ -13,8 +13,14 @@ little endian. Offset0 schema1;1 flags(bit0 valid fault,bit1 bench instrumentati
 Unknown schema, lengths, flag bits and reserved fields should be rejected by peers.
 
 Fault words: magic0x41525446,format0x00010040,IPSR,EXC_RETURN,rawSP,stackedPC,
-stackedLR,xPSR,CFSR,HFSR,MMFAR,BFAR,currentTask,flags,reserved0,checksum. Flag bit0
+stackedLR,xPSR,CFSR,HFSR,MMFAR,BFAR,currentTask,flags,failureStage,checksum. Flag bit0
 means the exception frame passed range/alignment/EXC_RETURN/stacking-error checks.
+Flag bit1 instead identifies software-detected startup failure: failureStage is1..10,
+exception words2..11 are zero and no exception frame is claimed. Exception records
+have failureStage0. Stage1 HSIready;2 HSIswitch;3 HSEready;4 PLLready;5 PLLswitch;
+6 ADC DMA;7 ADCresetcalibration;8 ADCcalibration;9 reserved for synchronous ADC
+conversion callers;10 batteryfirstsample. Synchronous ADC currently has no callers
+and returns failure explicitly without recording or resetting.
 MMFAR/BFAR are zero unless their valid status bit is set. Checksum is FNV-1a32 over
 little-endian bytes of words1 through14. Record magic commits last. Current task
 is0xffffffff outside foreground task dispatch. The handler uses a separate512byte
@@ -48,3 +54,27 @@ Validation entry points: tests/check_diagnostics.py, tests/check_image.py and th
 integration Renode harness. Freeze combined firmware, Linux consumer and checker
 sources before executing qualification. Physical fault/reset retention and control
 latency require separately authorized hardware acceptance.
+
+
+## Bounded startup failures
+
+Clock setup uses at most1,048,576 volatile status reads per stage, before data/BSS
+initialization. These are iteration budgets, not physical oscillator timeouts.
+Failure records a stage then halts without silently switching to an8MHz runtime.
+The diagnostic failure path uses only stack/MMIO/retained RAM and constants; it
+must not acquire a dependency on initialized globals, constructors or libc.
+
+ADC initialization returns explicit DMA/calibration status. Inputs propagates it
+to main; DMA capture is gated on successful initialization and failed samples never
+become controls. Battery initialization has already disabled charge and shunts
+before ADC initialization. The normal first-battery-measurement wait allows five
+seconds (250 nominal50Hz opportunities, versus one initialeligibleheartbeat and
+50heartbeats per laterbatteryperiod). The final deadline decision rechecks the
+initialized state under an interrupt guard. The earlier pin-reset shortcut,
+no-battery route, thresholds and charger/button policy remain unchanged. Failure
+records and halts; it does not invent a battery value, reset, flash or change GPIOs.
+
+Flash BSY remains explicitly unbounded. Executing the wait/time/failure code from
+the same busy flash bank cannot guarantee progress. A real bound needs a separately
+reviewed RAM-resident operation and still-busy failure policy; no misleading
+SysTime-only timeout or watchdog activation is added here.

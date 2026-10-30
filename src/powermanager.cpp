@@ -6,6 +6,8 @@
 #include "ili9341parallel.h"
 #include "params.h"
 #include "board.h"
+#include "diagnostics.h"
+#include "startupfailure.h"
 #include "resources-gen.h"
 
 #include "stm32/sys.h"
@@ -60,7 +62,17 @@ void PowerManager::waitForCompleteStartup()
     // run the task loop briefly to allow the battery to initialize.
     // if battery is not connected, don't bother waiting for it.
     if (batt.batteryIsPresent()) {
+        // Normal battery cadence is50heartbeats (one second); startup begins at
+        // count49 so the first sample is eligible after one heartbeat. Allow
+        // five full nominal periods, without ever accepting a fabricated level.
+        const SysTime::Ticks started = SysTime::now();
         while (!batt.isInitialized()) {
+            const SysTime::Ticks now = SysTime::now();
+            {
+                InterruptGuard guard;
+                if (StartupFailure::batteryExpired(batt.isInitialized(), started, now))
+                    artoo_capture_failure(StartupFailure::BatteryFirstSample);
+            }
             if (!Tasks::work()) {
                 Sys::waitForInterrupt();
             }

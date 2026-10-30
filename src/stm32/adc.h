@@ -6,6 +6,7 @@
 
 #include "hw.h"
 #include "common.h"
+#include "../startupfailure.h"
 
 class Adc
 {
@@ -37,10 +38,10 @@ public:
     static const uint16_t RawRange = 1 << 12;
 
     Adc(volatile ADC_t *adc, AdcIsr_t cb) :
-        hw(adc), dmaChan(NULL), completionCB(cb)
+        hw(adc), dmaChan(NULL), completionCB(cb), ready(false)
     {}
 
-    void init(bool dma, TriggerSource = TrigSwStart);
+    StartupFailure::Stage init(bool dma, TriggerSource = TrigSwStart);
     void setSampleRate(uint8_t ch, SampleRate rate);
 
     ALWAYS_INLINE void enableEocInterrupt() {
@@ -54,13 +55,14 @@ public:
     void setRegularSequence(uint8_t len, const uint8_t channels[]);
 
     void beginSequence(unsigned len, uint16_t *samplebuf);
-    uint16_t sampleSync(uint8_t channel);
+    bool sampleSync(uint8_t channel, uint16_t &sample);
 
 private:
     volatile ADC_t *hw;
     volatile DMAChannel_t *dmaChan;
 
     AdcIsr_t completionCB;
+    bool ready;
     static void dmaCallback(void *p, uint8_t flags);
 };
 

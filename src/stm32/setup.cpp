@@ -6,6 +6,7 @@
 #include "hw.h"
 #include "gpio.h"
 #include "../diagnostics.h"
+#include "../startupfailure.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -64,24 +65,28 @@ extern "C" void _start()
     // system runs from HSI on reset - make sure this is on and stable
     // before we switch away from it
     RCC.CR |= (1 << 0); // HSION
-    while (!(RCC.CR & (1 << 1))); // wait for HSI ready
+    if (!StartupFailure::waitMasked(RCC.CR, 1u << 1, 1u << 1))
+        artoo_capture_failure(StartupFailure::HsiReady);
 
     RCC.CR &=  (0x1F << 3)  |   // HSITRIM reset value
             (1 << 0);        // HSION
     RCC.CFGR = 0;       // reset
     // Wait until HSI is the source.
-    while ((RCC.CFGR & (3 << 2)) != 0x0);
+    if (!StartupFailure::waitMasked(RCC.CFGR, 3u << 2, 0))
+        artoo_capture_failure(StartupFailure::HsiSwitch);
 
     // fire up HSE
     RCC.CR |= (1 << 16); // HSEON
-    while (!(RCC.CR & (1 << 17))); // wait for HSE to be stable
+    if (!StartupFailure::waitMasked(RCC.CR, 1u << 17, 1u << 17))
+        artoo_capture_failure(StartupFailure::HseReady);
 
     // fire up the PLL
     RCC.CFGR |= (4 << 18) |             // PLLMUL - x6
             (0 << 17)     |             // PLL XTPRE
             (1 << 16);                  // PLLSRC - HSE
     RCC.CR   |= (1 << 24);              // turn PLL on
-    while (!(RCC.CR & (1 << 25)));      // wait for PLL to be ready
+    if (!StartupFailure::waitMasked(RCC.CR, 1u << 25, 1u << 25))
+        artoo_capture_failure(StartupFailure::PllReady);
 
     // configure all the other buses
     RCC.CFGR =
@@ -106,7 +111,8 @@ extern "C" void _start()
 
     // switch to PLL as system clock
     RCC.CFGR |= (2 << 0);
-    while ((RCC.CFGR & (3 << 2)) != (2 << 2));   // wait till we're running from PLL
+    if (!StartupFailure::waitMasked(RCC.CFGR, 3u << 2, 2u << 2))
+        artoo_capture_failure(StartupFailure::PllSwitch);
 
     // reset all peripherals
     RCC.APB1RSTR = 0xFFFFFFFF;

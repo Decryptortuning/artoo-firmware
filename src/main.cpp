@@ -69,7 +69,8 @@ int main()
     FlightManager::instance.init();
 
     // ensure our ADC values are initialized as soon as possible
-    Inputs::init();
+    const StartupFailure::Stage inputStatus = Inputs::init();
+    if (inputStatus != StartupFailure::None) artoo_capture_failure(inputStatus);
     Haptic::init();
 
     PowerManager::waitForCompleteStartup();
