@@ -1,5 +1,6 @@
 #include "tasks.h"
 #include "diagnostics.h"
+#include "watchdog.h"
 #include "params.h"
 #include "cameracontrol.h"
 #include "hostprotocol.h"
@@ -114,13 +115,16 @@ bool Tasks::work()
         return false;
     }
 
+    bool heartbeat=false;
     do {
         unsigned idx = Intrinsic::CLZ(tasks);
         Diagnostics::taskBegin(idx);
         invoke(idx);
+        if (idx==FiftyHzHeartbeat) heartbeat=true;
         Diagnostics::taskEnd(idx);
         tasks &= ~Intrinsic::LZ(idx);
     } while (tasks);
 
+    Watchdog::foreground(heartbeat, (__atomic_load_n(&pendingMask,__ATOMIC_ACQUIRE) & Intrinsic::LZ(HostProtocol))!=0);
     return true;
 }

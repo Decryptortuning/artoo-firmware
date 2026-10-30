@@ -53,7 +53,7 @@ public:
     static bool pinReset() {
         // test for presence of pin reset, and absence of power & software reset
         // assumes latchAndClearResetFlags() has already been called
-        return (latchedCSR & (CSR_PIN_RSTF | CSR_SFT_RSTF | CSR_POR_RSTF)) == CSR_PIN_RSTF;
+        return (latchedCSR & (CSR_PIN_RSTF | CSR_SFT_RSTF | CSR_POR_RSTF | CSR_IWDG_RSTF | CSR_WWDG_RSTF | CSR_LPWR_RSTF)) == CSR_PIN_RSTF;
     }
 
     static bool swReset() {

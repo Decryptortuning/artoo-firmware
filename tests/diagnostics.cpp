@@ -26,11 +26,11 @@ int main() {
         }
     }
     words[13] = 2;
-    for (unsigned stage = 1; stage <= 10; ++stage) {
+    for (unsigned stage = 1; stage <= 13; ++stage) {
         words[14] = stage; words[15] = DiagnosticRecord::checksum(words);
         assert(DiagnosticRecord::valid(words));
     }
-    for (unsigned stage : {0u,11u,0xffffffffu}) {
+    for (unsigned stage : {0u,14u,0xffffffffu}) {
         words[14] = stage; words[15] = DiagnosticRecord::checksum(words);
         assert(!DiagnosticRecord::valid(words));
     }

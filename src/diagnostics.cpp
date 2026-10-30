@@ -1,4 +1,5 @@
 #include "diagnostics.h"
+#include "watchdog.h"
 #include "diagnosticrecord.h"
 #include "stm32/rcc.h"
 #include "stm32/systime.h"
@@ -171,5 +172,6 @@ void Diagnostics::snapshot(uint8_t *out, uint16_t token, const uint32_t *uartSta
         for (unsigned i = 9; i < MetricWords; ++i) DiagnosticRecord::encode32(out+76+4*i, metrics[i]);
     }
 #endif
+    DiagnosticRecord::encode32(out+76+4*31, Watchdog::status());
     for (unsigned i = 0; i < 9; ++i) DiagnosticRecord::encode32(out+76+4*i, uartStats[i]);
 }

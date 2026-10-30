@@ -6,7 +6,7 @@ enum Stage {
     None = 0, HsiReady = 1, HsiSwitch = 2, HseReady = 3,
     PllReady = 4, PllSwitch = 5, AdcDma = 6,
     AdcResetCalibration = 7, AdcCalibration = 8,
-    AdcConversion = 9, BatteryFirstSample = 10
+    AdcConversion = 9, BatteryFirstSample = 10, FlashBusy = 11, FlashException = 12, WatchdogSetup = 13
 };
 // Iteration bound, NOT a wall-clock deadline. Deliberately generous for startup;
 // physical oscillator/peripheral latency remains a separate acceptance check.

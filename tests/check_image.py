@@ -18,7 +18,8 @@ symbols = {}
 for line in subprocess.check_output(['arm-none-eabi-nm','-n',str(args.elf)],text=True).splitlines():
     fields = line.split()
     if len(fields) == 3: symbols[fields[2]] = int(fields[0],16)
-base,limit,ram,top = 0x08000000,0x0803f800,0x20000000,0x2000c000
+base,limit,ram,top = 0x08000000,0x0803f000,0x20000000,0x2000c000
+assert binary[304:320] == b'OS5JNL1!'+struct.pack('<IHH',limit,172,1)
 vectors = struct.unpack_from('<76I',binary)
 assert vectors[0] == top and vectors[1] == (symbols['_start'] | 1)
 assert all(value == 0 or (value & 1 and base <= value < base+len(binary)) for value in vectors[1:])

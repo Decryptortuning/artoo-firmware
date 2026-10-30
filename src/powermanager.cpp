@@ -7,6 +7,7 @@
 #include "params.h"
 #include "board.h"
 #include "diagnostics.h"
+#include "watchdog.h"
 #include "startupfailure.h"
 #include "resources-gen.h"
 
@@ -33,7 +34,8 @@ void PowerManager::init()
 
     GPIOPin imx6 = PWR_IMX6_GPIO;
     imx6.setControl(GPIOPin::OUT_2MHZ);
-    disableIMX6();
+    if (Watchdog::resumeRunning()) enableIMX6();
+    else disableIMX6();
 
     sysState = Boot;
 }
@@ -50,7 +52,7 @@ void PowerManager::waitForCompleteStartup()
      * or at any time during those 4 seconds, we continue starting up.
      */
 
-    if (Rcc::pinReset()) {
+    if (Rcc::pinReset() || Watchdog::resumeRunning()) {
         // if we woke up from NRST being pressed,
         // assume we were bootloaded and don't wait for button press
         enterRunningState();
@@ -174,6 +176,7 @@ void PowerManager::enterRunningState()
 
     enableIMX6();
     sysState = Running;
+    Watchdog::state(true);
     Ui::instance.pendEvent(Event::SystemEnteredRunningState);
 
     HostProtocol::instance.enableTX();
@@ -313,6 +316,7 @@ void PowerManager::onShutdownSequenceComplete()
      */
 
     sysState = Idle;
+    Watchdog::state(false);
 
     HostProtocol::instance.disableTX();
     Ui::instance.setBacklightsForState(sysState);

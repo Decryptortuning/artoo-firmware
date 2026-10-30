@@ -161,6 +161,7 @@ def archive_inventory(root, toolchain_archive, pillow_wheel, host, target):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('action', choices=('prepare', 'finish'))
+    parser.add_argument('--experimental-iwdg', type=int, choices=(0,1), default=0)
     for name in ('root', 'build', 'profile', 'board'):
         parser.add_argument('--' + name, required=True)
     parser.add_argument('--cc')
@@ -171,6 +172,8 @@ def main():
     parser.add_argument('--pillow-wheel', default='')
     args = parser.parse_args()
     root, build = Path(args.root).resolve(), Path(args.build).resolve()
+    if args.experimental_iwdg and args.profile != 'bench':
+        raise ValueError('IWDG requires bench')
     if args.profile not in ('production', 'factory', 'bench') or args.board not in ('dvt', 'bb03'):
         raise ValueError('Invalid profile/board')
     state = inventory(root)
@@ -179,6 +182,7 @@ def main():
                 'dependency_archives': archive_inventory(root, args.toolchain_archive, args.pillow_wheel, host, target)}
     version_args = ['--bench-noidle'] if args.profile == 'bench' else []
     version = run([root / 'git_describe_tag', *version_args], root)
+    if args.experimental_iwdg: version += '-iwdg'
     input_path = build / 'build-inputs.json'
     if args.action == 'prepare':
         (build / 'generated').mkdir(parents=True, exist_ok=True)
@@ -198,7 +202,8 @@ def main():
     commands = json.loads((build / 'compile_commands.json').read_text())
     flags = ['-DBOARD=' + ('3' if args.board == 'dvt' else '2'),
              '-DARTOO_FACTORY_TESTS=' + str(int(args.profile == 'factory')),
-             '-DARTOO_BENCH_NO_IDLE=' + str(int(args.profile == 'bench'))]
+             '-DARTOO_BENCH_NO_IDLE=' + str(int(args.profile == 'bench')),
+             '-DARTOO_EXPERIMENTAL_IWDG=' + str(args.experimental_iwdg)]
     for command in commands:
         argv = command.get('arguments') or shlex.split(command['command'])
         if not all(flag in argv for flag in flags):
@@ -206,7 +211,9 @@ def main():
     binary = (build / 'artoo.bin').read_bytes()
     if version.encode('ascii') + b'\0' not in binary:
         raise ValueError('Selected version absent from firmware')
-    if len(binary) > 0x3f800:
+    if binary[304:320] != b'OS5JNL1!\x00\xf0\x03\x08\xac\x00\x01\x00':
+        raise ValueError('Missing fixed journal storage layout marker')
+    if len(binary) > 0x3f000:
         raise ValueError('Firmware overlaps reserved parameter page')
     names = ('artoo.bin', 'artoo.elf', 'artoo.hex', 'artoo.map')
     dependencies = {}
@@ -219,7 +226,8 @@ def main():
                 raise ValueError('Missing compiler dependency: ' + str(path))
             dependencies[str(path)] = digest(path)
     record = {**prepared, 'schema': 2, 'board_id': 3 if args.board == 'dvt' else 2,
-        'factory_tests': args.profile == 'factory', 'bench_no_idle': args.profile == 'bench',
+        'factory_tests': args.profile == 'factory', 'bench_no_idle': args.profile == 'bench', 'experimental_iwdg': bool(args.experimental_iwdg),
+        'parameter_storage': {'schema': 1, 'start': 0x0803f000, 'pages': 2, 'payload_bytes': 172},
         'build_system': 'cmake-ninja', 'host': host,
         'toolchain': target, 'compiler_dependencies': dependencies,
         'cmake': tool('cmake'), 'ninja': tool('ninja'), 'compile_commands': commands,

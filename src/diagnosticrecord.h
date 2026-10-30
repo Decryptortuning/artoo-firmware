@@ -17,7 +17,7 @@ inline uint32_t checksum(const uint32_t *words) {
 }
 inline bool valid(const uint32_t *words) {
     const bool exception = words[14] == 0 && (words[13] & ~1u) == 0;
-    const bool software = words[13] == 2 && words[14] >= 1 && words[14] <= 10;
+    const bool software = words[13] == 2 && words[14] >= 1 && words[14] <= 13;
     return words[0] == Magic && words[1] == Format && (exception || software) &&
         words[15] == checksum(words);
 }

@@ -34,6 +34,7 @@ set(ARTOO_CPP_SOURCES
   src/stm32/adc.cpp
   src/stm32/bkp.cpp
   src/stm32/dma.cpp
+  src/stm32/flashram.cpp
   src/stm32/fsmc.cpp
   src/stm32/gpio.cpp
   src/stm32/hwtimer.cpp
@@ -66,4 +67,5 @@ set(ARTOO_CPP_SOURCES
   src/ui_topbar.cpp
   src/ui_updater.cpp
   src/vehicleconnector.cpp
+  src/watchdog.cpp
 )

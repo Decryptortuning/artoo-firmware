@@ -64,15 +64,14 @@ public:
      *  - endProgramming()
      */
     static inline void beginProgramming() {
-        FLASH.CR |= CR_PG;
+        // Each SRAM operation sets/clears PG and waits through completion.
     }
 
     static bool programHalfWord(uint16_t halfword, uint32_t address);
 
     static inline bool endProgramming() {
-        const bool ok = waitForPreviousOperation() == StatusComplete;
-        FLASH.CR &= ~CR_PG;
-        return ok;
+        // Successful SRAM return guarantees BSY clear; a timeout never returns.
+        return (FLASH.SR & (SR_BSY | SR_PGERR | SR_WRPRTERR)) == 0;
     }
 
     static inline void clearStatus() {
@@ -119,7 +118,7 @@ private:
         StatusWriteProtectErr
     };
 
-    static Status waitForPreviousOperation();
+    static bool parameterOperation(uint32_t address, uint16_t value, bool erase);
 };
 
 #endif // MCU_FLASH_H

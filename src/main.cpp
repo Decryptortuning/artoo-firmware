@@ -24,12 +24,14 @@
 #include "powermanager.h"
 #include "board.h"
 #include "diagnostics.h"
+#include "watchdog.h"
 
 int main()
 {
     // enable power manager first, to ensure we stay turned on
-    PowerManager::init();
     Rcc::latchAndClearResetFlags();
+    Watchdog::boot();
+    PowerManager::init();
     Diagnostics::init();
 
     Pwr::init();
@@ -78,6 +80,7 @@ int main()
     // for now, initial values in backup registers are only
     // available during boot. cleared as we enter the task loop.
     Bkp::reset();
+    Watchdog::allowStart();
 
     for (;;) {
         if (!Tasks::work()) {

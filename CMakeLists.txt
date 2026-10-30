@@ -3,6 +3,7 @@ project(artoo LANGUAGES C CXX)
 # Match the existing GCC-driver link: no automatic libstdc++ introduction.
 set(CMAKE_CXX_IMPLICIT_LINK_LIBRARIES "")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+option(ARTOO_EXPERIMENTAL_IWDG "Experimental bench-only runtime watchdog" OFF)
 set(ARTOO_PROFILE production CACHE STRING "production, factory or bench")
 set(ARTOO_BOARD dvt CACHE STRING "dvt or bb03")
 set(ARTOO_PYTHON "${CMAKE_SOURCE_DIR}/.venv/bin/python" CACHE FILEPATH "Pinned host Python")
@@ -37,6 +38,9 @@ if(ARTOO_PROFILE STREQUAL "factory")
 elseif(ARTOO_PROFILE STREQUAL "bench")
   set(bench 1)
 endif()
+if(ARTOO_EXPERIMENTAL_IWDG AND NOT ARTOO_PROFILE STREQUAL "bench")
+  message(FATAL_ERROR "Experimental watchdog requires bench profile")
+endif()
 include(cmake/sources.cmake)
 file(GLOB actual_sources CONFIGURE_DEPENDS RELATIVE "${CMAKE_SOURCE_DIR}" "src/*.cpp" "src/stm32/*.cpp")
 set(expected_sources ${ARTOO_CPP_SOURCES})
@@ -52,7 +56,7 @@ file(MAKE_DIRECTORY "${gen}")
 add_custom_target(artoo_inputs
   COMMAND "${ARTOO_PYTHON}" "${CMAKE_SOURCE_DIR}/tools/build_record.py" prepare
     --root "${CMAKE_SOURCE_DIR}" --build "${CMAKE_BINARY_DIR}"
-    --profile "${ARTOO_PROFILE}" --board "${ARTOO_BOARD}"
+    --profile "${ARTOO_PROFILE}" --board "${ARTOO_BOARD}" --experimental-iwdg "$<BOOL:${ARTOO_EXPERIMENTAL_IWDG}>"
     --cc "${CMAKE_C_COMPILER}" --cxx "${CMAKE_CXX_COMPILER}" --host-cc "${ARTOO_HOST_CC}"
     --mavlink-export "${ARTOO_MAVLINK_EXPORT}" --toolchain-archive "${ARTOO_TOOLCHAIN_ARCHIVE}" --pillow-wheel "${ARTOO_PILLOW_WHEEL}"
   BYPRODUCTS "${gen}/version.cpp" "${CMAKE_BINARY_DIR}/build-inputs.json"
@@ -94,7 +98,7 @@ set_target_properties(artoo PROPERTIES SUFFIX ".elf" LINKER_LANGUAGE C C_STANDAR
 set_target_properties(artoo_version PROPERTIES CXX_STANDARD 11 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
 foreach(compile_target artoo artoo_version)
 target_include_directories(${compile_target} PRIVATE "${gen}" "${CMAKE_SOURCE_DIR}/src" "${ARTOO_MAVLINK_EXPORT}/include")
-target_compile_definitions(${compile_target} PRIVATE BOARD=${board_id} ARTOO_FACTORY_TESTS=${factory} ARTOO_BENCH_NO_IDLE=${bench} MAVLINK_COMM_NUM_BUFFERS=1)
+target_compile_definitions(${compile_target} PRIVATE BOARD=${board_id} ARTOO_FACTORY_TESTS=${factory} ARTOO_BENCH_NO_IDLE=${bench} MAVLINK_COMM_NUM_BUFFERS=1 ARTOO_EXPERIMENTAL_IWDG=$<BOOL:${ARTOO_EXPERIMENTAL_IWDG}>)
 target_compile_options(${compile_target} PRIVATE -mthumb -mcpu=cortex-m3 -msoft-float -Os -ggdb -fstack-usage
   -Wall -Werror -Wundef -Wextra -Wshadow -Wredundant-decls -fno-common -ffunction-sections -fdata-sections -ffast-math
   -include "${CMAKE_SOURCE_DIR}/src/tampconfig.h"
@@ -115,7 +119,7 @@ add_custom_command(OUTPUT "${CMAKE_BINARY_DIR}/artoo.bin" "${CMAKE_BINARY_DIR}/a
 add_custom_target(artoo_manifest ALL
   COMMAND "${ARTOO_PYTHON}" "${CMAKE_SOURCE_DIR}/tools/build_record.py" finish
     --root "${CMAKE_SOURCE_DIR}" --build "${CMAKE_BINARY_DIR}"
-    --profile "${ARTOO_PROFILE}" --board "${ARTOO_BOARD}"
+    --profile "${ARTOO_PROFILE}" --board "${ARTOO_BOARD}" --experimental-iwdg "$<BOOL:${ARTOO_EXPERIMENTAL_IWDG}>"
     --cc "${CMAKE_C_COMPILER}" --cxx "${CMAKE_CXX_COMPILER}" --host-cc "${ARTOO_HOST_CC}"
     --mavlink-export "${ARTOO_MAVLINK_EXPORT}" --toolchain-archive "${ARTOO_TOOLCHAIN_ARCHIVE}" --pillow-wheel "${ARTOO_PILLOW_WHEEL}"
   DEPENDS "${CMAKE_BINARY_DIR}/artoo.bin" "${CMAKE_BINARY_DIR}/artoo.hex" VERBATIM)

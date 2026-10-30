@@ -5,9 +5,9 @@ MEMORY
     RAM (xrw) : ORIGIN = 0x20000000, LENGTH = 48K
     /*
      * pages are 2K in high density parts, and we use the
-     * last page for params storage
+     * last two pages for the parameter journal
      */
-    FLASH (rx) : ORIGIN = 0x08000000, LENGTH = 256K - 2K
+    FLASH (rx) : ORIGIN = 0x08000000, LENGTH = 256K - 4K
 }
 
 /* Main stack starts at the top of RAM */
@@ -23,6 +23,8 @@ SECTIONS
     .vectors : {
         KEEP(*(.vectors));
     } >FLASH
+
+    .artoo_layout : { KEEP(*(.artoo_layout)); } >FLASH
 
     /*
      * Program code in Flash
@@ -77,6 +79,10 @@ SECTIONS
     .data : AT (__data_src) {
         . = ALIGN(4);
         __data_start = .;
+        __ramfunc_start = .;
+        *(.ramfunc .ramfunc.*)
+        . = ALIGN(4);
+        __ramfunc_end = .;
         *(.data .data.*)
         __data_end = .;
     } >RAM

@@ -1,5 +1,6 @@
 #include "params.h"
 #include "paramstore.h"
+#include "paramjournal.h"
 #include "flightmanager.h"
 
 #include <string.h>
@@ -14,7 +15,11 @@ void Params::load()
      * Uninitialized bytes will be set to 0xff.
      */
 
-    memcpy(&storedValues, reinterpret_cast<const void*>(ParamsPageAddr), sizeof(storedValues));
+    static_assert(sizeof storedValues == ParamJournal::PayloadBytes, "parameter wire ABI");
+    if (!ParamJournal::load<McuFlash>(&storedValues)) {
+        // Fail closed: erased controls are invalid; do not overwrite damaged pages.
+        memset(&storedValues, 0xff, sizeof storedValues);
+    }
     // Old initialized labels may fill their field without a NUL. Leave
     // erased configs untouched so ButtonManager still supplies its defaults.
     for (unsigned i = 0; i < arraysize(storedValues.buttonConfigs); ++i) {
@@ -30,7 +35,7 @@ bool Params::save()
 {
     /*
      * Write our stored values to storage.
-     * In order to write even one new value, we must erase the entire page.
+     * Alternate journal pages; retain the previous committed snapshot.
      *
      * Should only be called on a periodic basis by fiftyHzWork()
      * or during shutdown.
@@ -44,7 +49,7 @@ bool Params::save()
         snapshot = storedValues;
         savedGeneration = pending.generation;
     }
-    if (!ParamStore::write<McuFlash>(ParamsPageAddr, &snapshot, sizeof snapshot)) return false;
+    if (!ParamJournal::save<McuFlash>(&snapshot)) return false;
     {
         InterruptGuard guard;
         // A new ISR edit during the transaction must remain pending.
@@ -100,3 +105,7 @@ bool Params::isInitialized(const void *p, unsigned len)
     // all bytes were uninitialized
     return false;
 }
+
+// Fixed offset304 follows the76-vector table. Updaters reject unknown layouts.
+extern const uint8_t artoo_storage_layout[16] __attribute__((section(".artoo_layout"),used)) =
+    {'O','S','5','J','N','L','1','!',0x00,0xf0,0x03,0x08,172,0,1,0};

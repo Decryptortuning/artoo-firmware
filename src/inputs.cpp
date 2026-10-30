@@ -1,4 +1,5 @@
 #include "inputs.h"
+#include "watchdog.h"
 #include "buttonmanager.h"
 #include "dsm.h"
 #include "params.h"
@@ -125,6 +126,7 @@ void Inputs::adcConversionComplete(bool success)
         return;
     }
     memcpy(completedSamples, adcSamples, sizeof completedSamples);
+    Watchdog::adcComplete();
     static const unsigned NUM_RC_STICKS = 4;
 
     if (mappingValid) {

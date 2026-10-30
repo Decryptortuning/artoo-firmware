@@ -31,6 +31,7 @@ for output in src/resources-gen.cpp src/resources-gen.h src/version.cpp; do
     rm -- "$output"
 done
 cmake --preset "$profile-$board" -B "$build_directory" \
+    -DARTOO_EXPERIMENTAL_IWDG="${ARTOO_EXPERIMENTAL_IWDG:-OFF}" \
     -DARTOO_PYTHON="$python_path" \
     -DARTOO_HOST_CC="${ARTOO_HOST_CC:-/usr/bin/gcc}" \
     -DARTOO_TOOLCHAIN_BIN="${ARTOO_TOOLCHAIN_BIN:-/usr/bin}" \

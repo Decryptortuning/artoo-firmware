@@ -95,8 +95,6 @@ public:
     static bool isInitialized(const void *m, unsigned len);
 
 private:
-    // we store our data in the last page of internal flash
-    static const unsigned ParamsPageAddr = McuFlash::END_ADDR - McuFlash::PAGE_SIZE;
 
     // sync params once a second
     static const unsigned SYNC_MILLIS = 1000;
