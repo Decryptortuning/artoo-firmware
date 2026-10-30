@@ -53,14 +53,14 @@ extern "C" void artoo_capture_fault(uint32_t *sp, uint32_t excReturn, uint32_t i
 
 namespace {
 #if ARTOO_BENCH_NO_IDLE
-uint32_t metrics[Diagnostics::MetricWords];
+volatile uint32_t metrics[Diagnostics::MetricWords];
 SysTime::Ticks taskStart, lastLoop;
 const uint32_t StackPaint = 0xa55ac33cu;
 uint32_t elapsed(SysTime::Ticks now, SysTime::Ticks then) {
     const SysTime::Ticks delta = now - then;
     return delta > 0xffffffffu ? 0xffffffffu : static_cast<uint32_t>(delta);
 }
-void maximum(uint32_t &value, uint32_t candidate) { if (candidate > value) value = candidate; }
+void maximum(volatile uint32_t &value, uint32_t candidate) { if (candidate > value) value = candidate; }
 #endif
 }
 

@@ -29,7 +29,7 @@ rejectedFrames,txRejected,txErrors. These remain available in production.
 Bench-only metrics9..16 are stackUsed,heapUsed,heapPeak,OOM,heartbeatPosted,
 heartbeatAccounted,heartbeatCoalesced,maxForegroundLoopGapTicks;17..23 task counts;
 24..30 maximum task durations;31 reserved0. Task indices match Tasks::TaskID0..6.
-32bit counters wrap; durations saturate at uint32 max and use9MHz SysTime ticks.
+32bit counters wrap; durations saturate at uint32 max and use SysTime nanoseconds (1,000,000,000 units/second; saturation at about4.295seconds).
 Heartbeat accounted is the posted sequence sampled when heartbeat work runs;
 coalescing counts excess posted work, not missed physical SysTicks. SysTime cannot
 recover multiple hardware periods collapsed into one pending interrupt.
