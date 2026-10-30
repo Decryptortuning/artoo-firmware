@@ -43,3 +43,8 @@ It is applied only to temporary extracted generator input, is hash-pinned in
 contract.json, and does not edit the product patch or vendor source checkout.
 The deliberate unaligned heartbeat/start/update and finalize-buffer tests retain
 packed-member warnings as errors. No warning suppression is used.
+
+The same patch explicitly converts received checksum bytes to unsigned before
+shifting/combining on the damaged-CRC path. Signed-char host UBSan found an
+upstream negative-left-shift error there; the checker keeps that strict target-
+independent regression rather than masking it with an unsigned-char flag.

@@ -15,6 +15,6 @@
   },
   "archive_url": "https://files.pythonhosted.org/packages/3c/4e/212af84fdb81b62e934faf1ae579cc5ffbb32d2756e9c7c63feff9a62877/pymavlink-2.4.50.tar.gz",
   "owned_patches": {
-    "vendor/mavlink/0001-c1-aligned-checksum.patch": "185238507eb468da1e15c874ae727086d13538015379f144a8ce8e913500bd7c"
+    "vendor/mavlink/0001-c1-aligned-checksum.patch": "e321d91a246557d87e17fe09f1f26fb617914319dfb98b5535d134edf8d5a75b"
   }
 }
