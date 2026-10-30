@@ -1,6 +1,10 @@
 #include "mcuflash.h"
 #include "../diagnostics.h"
 #include "../diagnosticrecord.h"
+#include "../board.h"
+#if BOARD != BOARD_DVT && BOARD != BOARD_BB03
+#error Review flash containment output mapping for this board
+#endif
 #include <stdint.h>
 
 #define RAM_CODE __attribute__((section(".ramfunc"),noinline,noclone))
@@ -10,6 +14,12 @@ static uint32_t flashVectors[128] __attribute__((aligned(512)));
 
 extern "C" RAM_CODE __attribute__((noreturn)) void artoo_flash_terminal(uint32_t stage)
 {
+    // DVT/BB03 share these active-high enables. Stop charging, both cell
+    // shunts and vibration; keep i.MX/controller power holds untouched.
+    *reinterpret_cast<volatile uint32_t*>(0x40010814u)=(1u<<11)|(1u<<8);
+    *reinterpret_cast<volatile uint32_t*>(0x40011c14u)=(1u<<11)|(1u<<12);
+    // Buzzer TIM2 channel3 output off; no flash-resident GPIO/timer helper.
+    *reinterpret_cast<volatile uint32_t*>(0x40000020u)&=~(1u<<8);
     volatile uint32_t *record = artoo_fault_record;
     record[0]=0;
     record[1]=0x00010040;
