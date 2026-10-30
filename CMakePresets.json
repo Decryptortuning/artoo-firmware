@@ -1,0 +1,91 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "production-dvt",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/production-dvt",
+      "toolchainFile": "${sourceDir}/cmake/arm-none-eabi.cmake",
+      "cacheVariables": {
+        "ARTOO_PROFILE": "production",
+        "ARTOO_BOARD": "dvt"
+      }
+    },
+    {
+      "name": "production-bb03",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/production-bb03",
+      "toolchainFile": "${sourceDir}/cmake/arm-none-eabi.cmake",
+      "cacheVariables": {
+        "ARTOO_PROFILE": "production",
+        "ARTOO_BOARD": "bb03"
+      }
+    },
+    {
+      "name": "factory-dvt",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/factory-dvt",
+      "toolchainFile": "${sourceDir}/cmake/arm-none-eabi.cmake",
+      "cacheVariables": {
+        "ARTOO_PROFILE": "factory",
+        "ARTOO_BOARD": "dvt"
+      }
+    },
+    {
+      "name": "factory-bb03",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/factory-bb03",
+      "toolchainFile": "${sourceDir}/cmake/arm-none-eabi.cmake",
+      "cacheVariables": {
+        "ARTOO_PROFILE": "factory",
+        "ARTOO_BOARD": "bb03"
+      }
+    },
+    {
+      "name": "bench-dvt",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/bench-dvt",
+      "toolchainFile": "${sourceDir}/cmake/arm-none-eabi.cmake",
+      "cacheVariables": {
+        "ARTOO_PROFILE": "bench",
+        "ARTOO_BOARD": "dvt"
+      }
+    },
+    {
+      "name": "bench-bb03",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/bench-bb03",
+      "toolchainFile": "${sourceDir}/cmake/arm-none-eabi.cmake",
+      "cacheVariables": {
+        "ARTOO_PROFILE": "bench",
+        "ARTOO_BOARD": "bb03"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "production-dvt",
+      "configurePreset": "production-dvt"
+    },
+    {
+      "name": "production-bb03",
+      "configurePreset": "production-bb03"
+    },
+    {
+      "name": "factory-dvt",
+      "configurePreset": "factory-dvt"
+    },
+    {
+      "name": "factory-bb03",
+      "configurePreset": "factory-bb03"
+    },
+    {
+      "name": "bench-dvt",
+      "configurePreset": "bench-dvt"
+    },
+    {
+      "name": "bench-bb03",
+      "configurePreset": "bench-bb03"
+    }
+  ]
+}

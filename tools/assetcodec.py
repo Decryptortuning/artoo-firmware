@@ -1,5 +1,6 @@
 """Deterministic host-only pinned C compression; no Tamp Python package needed."""
 import ctypes
+import os
 import hashlib
 import json
 import pathlib
@@ -16,7 +17,7 @@ class Encoder:
                 raise ValueError(f'vendored Tamp source differs from pin: {name}')
         self.directory=tempfile.TemporaryDirectory(prefix='artoo-tamp-encoder-')
         libpath=pathlib.Path(self.directory.name)/'encoder.so'
-        subprocess.run(['gcc','-std=c99','-O2','-shared','-fPIC','-include',str(ROOT/'src/tampconfig.h'),
+        subprocess.run([os.environ.get('ARTOO_HOST_CC', 'gcc'),'-std=c99','-O2','-shared','-fPIC','-include',str(ROOT/'src/tampconfig.h'),
                         str(ROOT/'tools/tampencode.c'),str(vendor/'common.c'),str(vendor/'compressor.c'),
                         '-o',str(libpath)],check=True)
         self.library=ctypes.CDLL(str(libpath))

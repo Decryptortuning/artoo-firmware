@@ -104,3 +104,55 @@ temporary directory and compares every output pixel through both the actual
 mixed decoder and Gfx sink, including tinted glyphs. It exercises 1/7/32-byte
 chunks, truncation, header/length corruption, expansion limits, ISR/reentry and
 fuzz cases under sanitizers. Hardware display latency remains an acceptance gate.
+
+## CMake migration candidate — October 29
+
+The local modernization source adds CMake/Ninja as the intended maintained
+build graph. This paragraph is an implementation description, not a parity-pass
+claim. Qualification is recorded separately in the central modernization receipt.
+The preserved prior entry point is `scripts/build-tup-reference.sh`; its historical
+source-tree outputs must never run concurrently with the new graph. No compiler,
+C++ standard, Pillow or Tamp upgrade is bundled with this migration.
+
+The ordinary command remains `scripts/build-wsl.sh production dvt`. It now selects
+one of six presets in `CMakePresets.json`, writing only to `build/PROFILE-BOARD`
+after removing three known ignored source-tree Tup generation outputs. Direct
+CMake configuration refuses those stale outputs, which otherwise shadow generated
+headers through quoted includes. Add owned source files to `cmake/sources.cmake`;
+configuration rejects unreviewed source-list drift. Factory and bench definitions,
+C99/C++11, compiler options, GCC link driver and basename-sorted object order are
+preserved for comparison. CMake does not automatically link libstdc++.
+
+Host and target tools are distinct: `ARTOO_PYTHON` selects the pinned virtual
+environment, `ARTOO_HOST_CC` selects native asset compression, and
+`ARTOO_TOOLCHAIN_BIN` selects a complete matched Arm toolchain directory. Defaults
+are `.venv/bin/python`, `/usr/bin/gcc` and `/usr/bin`. `ARTOO_JOBS` bounds parallel
+compilation. Changing compiler directories requires a fresh profile build directory
+(or a separately reviewed CMake configuration); do not mix compilers within old
+object files. Native tests are explicit separate qualification commands, not
+hidden in the build wrapper.
+
+`build-inputs.json` records all tracked repository files and rejects untracked or
+ignored files in compilation/generator/input directories. Only Python bytecode is
+excluded there. `build-manifest.json` binds the exact profile/version/artifacts,
+source identity, selected compiler programs and runtime libraries, multilib/specs,
+Python/Pillow/FreeType installed bytes, native compiler, actual compile commands,
+Ninja build commands and compiler header dependencies. Preparation and completion
+reject source/tool changes during a build. Distro package inventory is supplemental
+and does not assert that a privately selected compiler comes from those packages.
+Installed package hashes do not replace wheel/archive hashes when fetching a new
+dependency; retain those archives and hashes with the upgrade receipt.
+
+Export using `scripts/versioned-binaries.sh build/production-dvt NEW_DIRECTORY`.
+The destination must not exist and its parent must exist. All four artifacts are
+validated against the manifest before claiming the destination, copied from the
+validated bytes and checked after writing. A failed export retains an INCOMPLETE
+marker; existing exports are never removed. Asset-only generation similarly takes
+a new output directory. Static analysis consumes an existing compilation database
+through `scripts/run-checker.sh BUILD_DIRECTORY`; it never cleans or rebuilds.
+
+Before switching away from the preserved reference build, qualify all six profiles,
+asset pixels, linker/vector/constructor and memory contracts, native regressions,
+CMake incremental/source-change behavior and exact production/bench DVT Renode
+binaries. Explain byte/ordering differences explicitly. A migration build is not
+authorization to replace the Yocto-staged MCU payload or to flash hardware.

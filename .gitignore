@@ -26,3 +26,5 @@ build-once.sh
 *.su
 
 /build-manifest.json
+/build/
+/exports/
