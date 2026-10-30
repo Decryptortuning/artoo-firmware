@@ -14,8 +14,8 @@
  * stack, so we avoid that and use the standard 8-byte alignment.
  */
 
-#define IRQ_HANDLER     extern "C" void
-#define NAKED_HANDLER   extern "C" void __attribute__ ((naked))
+#define IRQ_HANDLER     extern "C" void __attribute__ ((nothrow))
+#define NAKED_HANDLER   extern "C" void __attribute__ ((naked, nothrow))
 
 extern "C" void _start();
 
