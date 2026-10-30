@@ -2,9 +2,11 @@
 """Native actual idle timer, with inert input/output sinks; no hardware writes."""
 import hashlib
 import json
+import os
 import pathlib
 import shutil
 import subprocess
+import sys
 import tempfile
 root = pathlib.Path(__file__).resolve().parents[1]
 with tempfile.TemporaryDirectory(prefix="artoo-idle-") as directory:
@@ -29,19 +31,33 @@ print("Default and explicit idle policies and distinct bench version passed.")
 with tempfile.TemporaryDirectory(prefix="artoo-idle-package-") as directory:
     package = pathlib.Path(directory)
     (package / "scripts").mkdir()
+    (package / "tools").mkdir()
+    build = package / "build"
+    build.mkdir()
+    destination = package / "saved"
     helper = package / "scripts/versioned-binaries.sh"
     shutil.copy2(root / "scripts/versioned-binaries.sh", helper)
+    shutil.copy2(root / "tools/export_artifacts.py", package / "tools/export_artifacts.py")
+    environment = dict(os.environ, ARTOO_PYTHON=sys.executable)
     version = "5.0.0-dev+g0123456789ab-bench-noidle"
     artifacts = {}
-    for name in ("artoo.bin", "artoo.elf", "artoo.hex"):
+    for name in ("artoo.bin", "artoo.elf", "artoo.hex", "artoo.map"):
         data = version.encode() + b"\0fixture-" + name.encode()
-        (package / name).write_bytes(data)
-        artifacts[name] = {"sha256": hashlib.sha256(data).hexdigest()}
-    (package / "build-manifest.json").write_text(json.dumps({"version": version, "artifacts": artifacts}))
-    subprocess.run(["sh", str(helper)], check=True)
+        (build / name).write_bytes(data)
+        artifacts[name] = {"sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data)}
+    (build / "build-manifest.json").write_text(json.dumps({"version": version, "artifacts": artifacts}))
+    subprocess.run([str(helper), str(build), str(destination)], env=environment, check=True)
     for name in artifacts:
-        assert (package / "bins" / ("artoo_" + version + pathlib.Path(name).suffix)).read_bytes() == (package/name).read_bytes()
-    (package / "artoo.bin").write_bytes(b"changed")
-    assert subprocess.run(["sh", str(helper)], stdout=subprocess.DEVNULL,
+        assert (destination / ("artoo_" + version + pathlib.Path(name).suffix)).read_bytes() == (build/name).read_bytes()
+    assert not (destination / "INCOMPLETE").exists()
+    # An existing export is retained, including a matching artifact set.
+    assert subprocess.run([str(helper), str(build), str(destination)], env=environment,
+                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0
+    saved = (destination / ("artoo_" + version + ".bin")).read_bytes()
+    (build / "artoo.bin").write_bytes(b"changed")
+    rejected = package / "rejected"
+    assert subprocess.run([str(helper), str(build), str(rejected)], env=environment, stdout=subprocess.DEVNULL,
                           stderr=subprocess.DEVNULL).returncode != 0
-print("Manifest-bound packaging preserved bench suffix and rejected changed artifact.")
+    assert not rejected.exists()
+    assert (destination / ("artoo_" + version + ".bin")).read_bytes() == saved
+print("Manifest-bound packaging preserved bench suffix, rejected collisions and changed artifacts.")
