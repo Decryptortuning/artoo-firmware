@@ -6,13 +6,14 @@
 #include <string.h>
 #include <initializer_list>
 #include "src/stm32/hw.h"
+#include "src/startupfailure.h"
 #define ADC_H
 class Adc {
 public:
     static const uint16_t RawRange = 4096;
     enum SampleRate { SampleRate_239_5 };
     Adc(volatile ADC_t *, void (*)(bool)) {} // Do not retain/invoke ISR callback.
-    void init(bool) { assert(false); }
+    StartupFailure::Stage init(bool) { assert(false); return StartupFailure::None; }
     void setRegularSequence(unsigned, const uint8_t *) { assert(false); }
     void setSampleRate(uint8_t, SampleRate) { assert(false); }
     void beginSequence(unsigned, uint16_t *) { assert(false); }

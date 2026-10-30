@@ -2,6 +2,7 @@
 #define INPUTS_H
 
 #include "io.h"
+#include "startupfailure.h"
 #include "stickaxis.h"
 #include "hostprotocol.h"
 #include "battery.h"
