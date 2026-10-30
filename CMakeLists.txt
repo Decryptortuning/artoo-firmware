@@ -7,6 +7,13 @@ set(ARTOO_PROFILE production CACHE STRING "production, factory or bench")
 set(ARTOO_BOARD dvt CACHE STRING "dvt or bb03")
 set(ARTOO_PYTHON "${CMAKE_SOURCE_DIR}/.venv/bin/python" CACHE FILEPATH "Pinned host Python")
 set(ARTOO_HOST_CC "/usr/bin/gcc" CACHE FILEPATH "Native asset compiler")
+set(ARTOO_MAVLINK_EXPORT "" CACHE PATH "Verified standalone Solo MAVLink export")
+set(ARTOO_TOOLCHAIN_ARCHIVE "" CACHE FILEPATH "Pinned candidate Arm toolchain archive")
+set(ARTOO_PILLOW_WHEEL "" CACHE FILEPATH "Pinned candidate Pillow wheel")
+if(NOT EXISTS "${ARTOO_MAVLINK_EXPORT}/manifest.json")
+  message(FATAL_ERROR "Set ARTOO_MAVLINK_EXPORT to the reviewed immutable Solo header export")
+endif()
+file(GLOB_RECURSE mavlink_headers CONFIGURE_DEPENDS "${ARTOO_MAVLINK_EXPORT}/include/*")
 if(NOT ARTOO_PROFILE MATCHES "^(production|factory|bench)$" OR NOT ARTOO_BOARD MATCHES "^(dvt|bb03)$")
   message(FATAL_ERROR "Invalid Artoo board/profile")
 endif()
@@ -47,7 +54,9 @@ add_custom_target(artoo_inputs
     --root "${CMAKE_SOURCE_DIR}" --build "${CMAKE_BINARY_DIR}"
     --profile "${ARTOO_PROFILE}" --board "${ARTOO_BOARD}"
     --cc "${CMAKE_C_COMPILER}" --cxx "${CMAKE_CXX_COMPILER}" --host-cc "${ARTOO_HOST_CC}"
+    --mavlink-export "${ARTOO_MAVLINK_EXPORT}" --toolchain-archive "${ARTOO_TOOLCHAIN_ARCHIVE}" --pillow-wheel "${ARTOO_PILLOW_WHEEL}"
   BYPRODUCTS "${gen}/version.cpp" "${CMAKE_BINARY_DIR}/build-inputs.json"
+  DEPENDS "${ARTOO_MAVLINK_EXPORT}/manifest.json" ${mavlink_headers}
   VERBATIM)
 file(GLOB_RECURSE asset_inputs CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/resources/*" "${CMAKE_SOURCE_DIR}/vendor/tamp/*")
 add_custom_command(OUTPUT "${gen}/resources-gen.cpp" "${gen}/resources-gen.h"
@@ -84,7 +93,7 @@ add_dependencies(artoo artoo_version)
 set_target_properties(artoo PROPERTIES SUFFIX ".elf" LINKER_LANGUAGE C C_STANDARD 99 C_STANDARD_REQUIRED YES C_EXTENSIONS NO CXX_STANDARD 11 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
 set_target_properties(artoo_version PROPERTIES CXX_STANDARD 11 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
 foreach(compile_target artoo artoo_version)
-target_include_directories(${compile_target} PRIVATE "${gen}" "${CMAKE_SOURCE_DIR}/src")
+target_include_directories(${compile_target} PRIVATE "${gen}" "${CMAKE_SOURCE_DIR}/src" "${ARTOO_MAVLINK_EXPORT}/include")
 target_compile_definitions(${compile_target} PRIVATE BOARD=${board_id} ARTOO_FACTORY_TESTS=${factory} ARTOO_BENCH_NO_IDLE=${bench} MAVLINK_COMM_NUM_BUFFERS=1)
 target_compile_options(${compile_target} PRIVATE -mthumb -mcpu=cortex-m3 -msoft-float -Os -ggdb -fstack-usage
   -Wall -Werror -Wundef -Wextra -Wshadow -Wredundant-decls -fno-common -ffunction-sections -fdata-sections -ffast-math
@@ -108,4 +117,5 @@ add_custom_target(artoo_manifest ALL
     --root "${CMAKE_SOURCE_DIR}" --build "${CMAKE_BINARY_DIR}"
     --profile "${ARTOO_PROFILE}" --board "${ARTOO_BOARD}"
     --cc "${CMAKE_C_COMPILER}" --cxx "${CMAKE_CXX_COMPILER}" --host-cc "${ARTOO_HOST_CC}"
+    --mavlink-export "${ARTOO_MAVLINK_EXPORT}" --toolchain-archive "${ARTOO_TOOLCHAIN_ARCHIVE}" --pillow-wheel "${ARTOO_PILLOW_WHEEL}"
   DEPENDS "${CMAKE_BINARY_DIR}/artoo.bin" "${CMAKE_BINARY_DIR}/artoo.hex" VERBATIM)

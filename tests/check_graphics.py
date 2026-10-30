@@ -2,12 +2,23 @@
 """Actual mixed decoder vs immutable pre-compression generator RGB565 corpus."""
 import collections
 import importlib.util
+import os
 import pathlib
 import re
 import struct
 import subprocess
+import sys
 import tempfile
+from mavlink_fixture import include_flags
+MAVLINK_FLAGS = include_flags()
+
 root=pathlib.Path(__file__).resolve().parents[1]
+candidate_python=os.environ.get('ARTOO_PYTHON',sys.executable)
+baseline_python=str(root/'.venv/bin/python')
+# The old renderer remains independently pinned even during a candidate Pillow
+# upgrade; do not regenerate both sides with the new renderer and mask drift.
+baseline_pillow=subprocess.check_output([baseline_python,'-c','import PIL;print(PIL.__version__)'],text=True).strip()
+assert baseline_pillow=='10.2.0', 'Historical graphics baseline requires Pillow10.2.0'
 BASELINE='66336f01c57de971a85c001aa627308871a3747f'
 FLAGS=['-O1','-g','-fsanitize=address,undefined','-fno-sanitize-recover=all',
        '-fno-omit-frame-pointer','-fno-pie']
@@ -30,12 +41,12 @@ with tempfile.TemporaryDirectory(prefix='artoo-graphics-') as directory:
     out=pathlib.Path(directory);baseline=out/'baseline';baseline.mkdir()
     for name in ('assetgen.py','assetlimits.py'):
         (baseline/name).write_bytes(subprocess.check_output(['git','show',f'{BASELINE}:tools/{name}'],cwd=root))
-    subprocess.run([str(root/'.venv/bin/python'),str(baseline/'assetgen.py'),str(root/'resources/assets.cfg'),str(baseline)],cwd=root,check=True)
-    subprocess.run([str(root/'.venv/bin/python'),str(root/'tools/assetgen.py'),str(root/'resources/assets.cfg'),str(out)],cwd=root,check=True)
+    subprocess.run([baseline_python,str(baseline/'assetgen.py'),str(root/'resources/assets.cfg'),str(baseline)],cwd=root,check=True)
+    subprocess.run([candidate_python,str(root/'tools/assetgen.py'),str(root/'resources/assets.cfg'),str(out)],cwd=root,check=True)
     source=(out/'resources-gen.cpp').read_text(); old=(baseline/'resources-gen.cpp').read_text()
     current=arrays(source);original=arrays(old)
     repeated=out/'repeated';repeated.mkdir()
-    subprocess.run([str(root/'.venv/bin/python'),str(root/'tools/assetgen.py'),str(root/'resources/assets.cfg'),str(repeated)],cwd=root,check=True)
+    subprocess.run([candidate_python,str(root/'tools/assetgen.py'),str(root/'resources/assets.cfg'),str(repeated)],cwd=root,check=True)
     assert arrays((repeated/'resources-gen.cpp').read_text())==current, 'asset output is not deterministic'
     # The current generator must preserve every descriptor except its format.
     def metadata(text):
@@ -75,11 +86,11 @@ with tempfile.TemporaryDirectory(prefix='artoo-graphics-') as directory:
         obj=out/(name+'.o');objects.append(str(obj))
         subprocess.run(['gcc','-std=c99',*FLAGS,'-include',str(root/'src/tampconfig.h'),'-c',str(root/f'vendor/tamp/{name}.c'),'-o',str(obj)],check=True)
     exe=out/'graphics'
-    subprocess.run(['g++','-std=c++11','-DARTOO_HOST_TEST','-funsigned-char',*FLAGS,'-no-pie',
+    subprocess.run(['g++',*MAVLINK_FLAGS,'-std=c++11','-DARTOO_HOST_TEST','-funsigned-char',*FLAGS,'-no-pie',
                     '-I',str(root),'-I',str(root/'src'),'-I',str(root/'tests'),'-include',str(root/'tests/lcd_sink.h'),str(fixture),str(root/'src/assetdecoder.cpp'),str(root/'src/gfx.cpp'),*objects,'-o',str(exe)],check=True)
     subprocess.run([str(exe),str(out/'golden.bin')],check=True)
     wrapper=out/'wrappers'
-    subprocess.run(['g++','-std=c++11','-DARTOO_HOST_TEST','-funsigned-char',*FLAGS,'-no-pie','-I',str(root),
+    subprocess.run(['g++',*MAVLINK_FLAGS,'-std=c++11','-DARTOO_HOST_TEST','-funsigned-char',*FLAGS,'-no-pie','-I',str(root),
                     '-include',str(root/'tests/lcd_sink.h'),str(root/'tests/graphics_wrappers.cpp'),
                     str(root/'src/gfx.cpp'),str(root/'src/assetdecoder.cpp'),*objects,'-o',str(wrapper)],check=True)
     subprocess.run([str(wrapper)],check=True)

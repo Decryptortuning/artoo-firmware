@@ -18,6 +18,28 @@ record_spec.loader.exec_module(recorder)
 
 
 class InputTests(unittest.TestCase):
+    def test_export_header_tamper_and_extra_header_rejected(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            header = root / 'include/opensolo/mavlink/solo/mavlink.h'
+            header.parent.mkdir(parents=True)
+            header.write_text('/* pinned header */')
+            contract_path = ROOT / 'vendor/mavlink/contract.json'
+            contract = json.loads(contract_path.read_text())
+            manifest = {'schema': 1, 'wire_protocol': '1.0', 'generator_version': contract['generator_version'],
+                        'contract': contract, 'contract_sha256': recorder.digest(contract_path),
+                        'exporter_sha256': recorder.digest(ROOT / 'tools/export_mavlink.py'),
+                        'header_sha256': {str(header.relative_to(root)): hashlib.sha256(header.read_bytes()).hexdigest()}}
+            (root / 'manifest.json').write_text(json.dumps(manifest))
+            self.assertEqual(recorder.mavlink_inventory(root)['manifest'], manifest)
+            header.write_text('/* changed */')
+            with self.assertRaisesRegex(ValueError, 'inventory/hash'):
+                recorder.mavlink_inventory(root)
+            header.write_text('/* pinned header */')
+            (header.parent / 'unexpected.h').write_text('/* extra */')
+            with self.assertRaisesRegex(ValueError, 'inventory/hash'):
+                recorder.mavlink_inventory(root)
+
     def test_untracked_source_rejected_even_when_git_ignores_it(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

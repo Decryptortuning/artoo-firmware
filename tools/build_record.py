@@ -111,6 +111,53 @@ def target_environment(cc, cxx):
             'note': 'Distro inventory is supplemental; resolved tool/runtime hashes identify selected inputs.'}
 
 
+def mavlink_inventory(directory):
+    root = Path(directory).resolve()
+    owned = Path(__file__).resolve().parents[1]
+    manifest_path = root / 'manifest.json'
+    manifest = json.loads(manifest_path.read_text())
+    contract_path = owned / 'vendor/mavlink/contract.json'
+    contract = json.loads(contract_path.read_text())
+    if (manifest.get('schema') != 1 or manifest.get('wire_protocol') != '1.0'
+            or manifest.get('generator_version') != contract['generator_version']
+            or manifest.get('contract') != contract
+            or manifest.get('contract_sha256') != digest(contract_path)
+            or manifest.get('exporter_sha256') != digest(owned / 'tools/export_mavlink.py')):
+        raise ValueError('MAVLink export provenance differs from owned contract/exporter')
+    headers = manifest['header_sha256']
+    if not isinstance(headers, dict) or not headers:
+        raise ValueError('Empty MAVLink header manifest')
+    actual = {str(p.relative_to(root)): digest(p) for p in (root / 'include').rglob('*') if p.is_file()}
+    if actual != headers:
+        raise ValueError('MAVLink export header inventory/hash differs from manifest')
+    for name in headers:
+        path = (root / name).resolve()
+        if not path.is_relative_to(root / 'include') or not path.is_file():
+            raise ValueError('MAVLink manifest path escapes include root')
+    if 'include/opensolo/mavlink/solo/mavlink.h' not in headers:
+        raise ValueError('Solo MAVLink entry point is missing')
+    return {'path': str(root), 'manifest_sha256': digest(manifest_path), 'manifest': manifest}
+
+
+def archive_inventory(root, toolchain_archive, pillow_wheel, host, target):
+    pins = json.loads((root / 'dependency-pins.json').read_text())
+    archives = {}
+    for key, supplied in [('arm-15.3.rel2', toolchain_archive), ('pillow-13.0.0', pillow_wheel)]:
+        if supplied:
+            path = Path(supplied).resolve()
+            pin = pins[key]
+            if digest(path) != pin['sha256'] or path.stat().st_size != pin['bytes']:
+                raise ValueError('Dependency archive differs from source pin: ' + key)
+            archives[key] = {'path': str(path), 'pin': pin}
+    if host['pillow']['version'] != '10.2.0':
+        if host['pillow']['version'] != '13.0.0' or 'pillow-13.0.0' not in archives:
+            raise ValueError('Non-baseline Pillow requires the reviewed candidate wheel')
+    if '15.3' in target['c']['version'] and 'arm-15.3.rel2' not in archives:
+        raise ValueError('Arm15.3 evaluation requires the reviewed complete archive')
+    return {'pins_sha256': digest(root / 'dependency-pins.json'), 'archives': archives,
+            'scope': 'Archive checksum plus actual installed tool/runtime hashes; no signature verification or automatic installation.'}
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('action', choices=('prepare', 'finish'))
@@ -119,11 +166,17 @@ def main():
     parser.add_argument('--cc')
     parser.add_argument('--cxx')
     parser.add_argument('--host-cc', default='/usr/bin/gcc')
+    parser.add_argument('--mavlink-export', required=True)
+    parser.add_argument('--toolchain-archive', default='')
+    parser.add_argument('--pillow-wheel', default='')
     args = parser.parse_args()
     root, build = Path(args.root).resolve(), Path(args.build).resolve()
     if args.profile not in ('production', 'factory', 'bench') or args.board not in ('dvt', 'bb03'):
         raise ValueError('Invalid profile/board')
     state = inventory(root)
+    host, target = host_environment(args.host_cc), target_environment(args.cc, args.cxx)
+    external = {'mavlink_export': mavlink_inventory(args.mavlink_export),
+                'dependency_archives': archive_inventory(root, args.toolchain_archive, args.pillow_wheel, host, target)}
     version_args = ['--bench-noidle'] if args.profile == 'bench' else []
     version = run([root / 'git_describe_tag', *version_args], root)
     input_path = build / 'build-inputs.json'
@@ -132,15 +185,16 @@ def main():
         version_src = '#include "version.h"\nconst char* Version::str() {return ' + json.dumps(version) + ';}\n'
         replace_changed(build / 'generated/version.cpp', version_src)
         state.update(version=version, profile=args.profile, board=args.board,
-                     host=host_environment(args.host_cc), toolchain=target_environment(args.cc, args.cxx))
+                     host=host, toolchain=target, **external)
         replace_changed(input_path, json.dumps(state, indent=2) + '\n')
         return
     prepared = json.loads(input_path.read_text())
     if any(prepared[k] != state[k] for k in state) or prepared['version'] != version:
         raise ValueError('Source changed during build; freeze candidate and rebuild')
-    host, target = host_environment(args.host_cc), target_environment(args.cc, args.cxx)
     if prepared['host'] != host or prepared['toolchain'] != target:
         raise ValueError('Build tools changed during build')
+    if any(prepared[key] != value for key, value in external.items()):
+        raise ValueError('External build inputs changed during build')
     commands = json.loads((build / 'compile_commands.json').read_text())
     flags = ['-DBOARD=' + ('3' if args.board == 'dvt' else '2'),
              '-DARTOO_FACTORY_TESTS=' + str(int(args.profile == 'factory')),

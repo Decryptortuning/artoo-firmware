@@ -8,6 +8,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from mavlink_fixture import include_flags
+MAVLINK_FLAGS = include_flags()
+
 root = pathlib.Path(__file__).resolve().parents[1]
 with tempfile.TemporaryDirectory(prefix="artoo-idle-") as directory:
     # Test the undefined-macro fallback as well as both explicit build values.
@@ -15,7 +18,7 @@ with tempfile.TemporaryDirectory(prefix="artoo-idle-") as directory:
         exe = pathlib.Path(directory) / ("idle-" + str(mode))
         flags = [] if mode is None else [f"-DARTOO_BENCH_NO_IDLE={mode}"]
         subprocess.run([
-            "g++", "-std=c++11", "-DARTOO_HOST_TEST", "-funsigned-char", "-O1", "-g",
+            "g++", *MAVLINK_FLAGS, "-std=c++11", "-DARTOO_HOST_TEST", "-funsigned-char", "-O1", "-g",
             "-fsanitize=address,undefined", "-fno-sanitize-recover=all",
             "-fno-omit-frame-pointer", "-fno-pie", "-no-pie", "-I", str(root),
             *flags, str(root / "tests/idletimeout.cpp"), "-o", str(exe),

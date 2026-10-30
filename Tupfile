@@ -1,3 +1,5 @@
+# Historical reference graph only; current builds use CMakeLists.txt.
+# Exact parity accepted at 9191566; later source uses an external MAVLink export.
 
 PROJECT  := artoo
 

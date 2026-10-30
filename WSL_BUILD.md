@@ -16,8 +16,8 @@ python3 -m venv .venv
 The current migration wrapper configures an isolated CMake/Ninja profile, retaining
 compiler diagnostics as errors. Outputs are artoo.elf, artoo.map, artoo.hex and
 artoo.bin under `build/PROFILE-BOARD`. Native regression suites are separate
-qualification commands. The previous Tup wrapper is preserved as
-`scripts/build-tup-reference.sh` until parity is accepted; see the migration
+qualification commands. The previous Tup build is preserved in Git at `9191566`
+after exact parity; `scripts/build-tup-reference.sh` now explains that historical scope and exits. See the migration
 section below. `VERSION` plus the source commit identifies development builds;
 these are not upstream releases.
 
@@ -158,3 +158,47 @@ asset pixels, linker/vector/constructor and memory contracts, native regressions
 CMake incremental/source-change behavior and exact production/bench DVT Renode
 binaries. Explain byte/ordering differences explicitly. A migration build is not
 authorization to replace the Yocto-staged MCU payload or to flash hardware.
+
+## Isolated dependency and MAVLink candidates
+
+Freeze4 at `9191566` passed all six CMake builds, exact production-DVT Tup/CMake
+BIN/HEX and asset-byte parity, unchanged incremental rebuild outputs and canonical
+production/bench Renode. The receipt is
+`/home/jresp/solo/.integration/artoo-modernization-20261030T031656Z`.
+Tup is now historical inventory only; CMake is the sole maintained build graph.
+
+Generated Solo headers now come from an explicit immutable export selected with
+`ARTOO_MAVLINK_EXPORT`. Its `manifest.json` must contain `header_sha256`, mapping
+every file under `include/` to its exact SHA256, and the entry point
+`include/opensolo/mavlink/solo/mavlink.h`. The build verifies the entire inventory
+before and after compilation and records the export manifest and header hashes.
+The product-owned XML/generator export tool owns producing this directory; an
+ambient sibling checkout is not an input. Changing exports changes dependencies.
+
+Set `ARTOO_BUILD_ROOT` to a fresh absolute directory for compiler/Pillow comparisons;
+the six profile subdirectories remain separate below it. Existing caches refuse
+compiler-directory or Python-executable changes. `ARTOO_TOOLCHAIN_ARCHIVE` and
+`ARTOO_PILLOW_WHEEL` select the preserved archives whose URLs, lengths and SHA256
+are tracked in `dependency-pins.json`. Selected Arm15.3 and Pillow13 candidates
+require those checked archives. Actual installed program/runtime/renderer hashes
+remain independently recorded. Archive checksum validation is not a claim of
+signature verification or proof that arbitrary installed tools were extracted
+from those archives. No download or installation happens during a build.
+
+For candidate graphics qualification run:
+
+```bash
+ARTOO_PYTHON=/absolute/candidate-venv/bin/python python3 tests/check_graphics.py
+```
+
+The candidate and repeat generations use that interpreter; the independent old
+baseline always uses `.venv/bin/python` and requires Pillow10.2.0. This prevents a
+Pillow upgrade from silently moving both sides of the raster comparison. Preserve
+that baseline venv when promoting a separately qualified candidate. For the
+unchanged baseline set ARTOO_PYTHON to the checkout's `.venv/bin/python` explicitly.
+Default compiler/Pillow selection remains unchanged pending comparisons.
+
+Native reliability, concurrency, calibration, idle and graphics fixtures include
+the actual MCU host/flight headers. Set `ARTOO_MAVLINK_EXPORT` for those commands
+as well; their shared fixture verifies the same contract/exporter/header hashes
+as production. The dedicated MAVLink tests accept an explicit `--mavlink-export`.
