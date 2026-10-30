@@ -1,8 +1,7 @@
 #ifndef _MAVLINK_H
 #define _MAVLINK_H
 
-#include "mavlink/c_library/ardupilotmega/mavlink.h"
-#include "mavlink/c_library/common/mavlink.h"
+#include <opensolo/mavlink/solo/mavlink.h>
 
 #include "hostprotocol.h"
 

@@ -12,7 +12,7 @@
 #include "stm32/vectors.h"
 #include "stm32/systime.h"
 
-#include "mavlink/c_library/ardupilotmega/mavlink.h"
+#include <opensolo/mavlink/solo/mavlink.h>
 
 class HostProtocol : public HostMessage
 {

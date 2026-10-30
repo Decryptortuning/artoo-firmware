@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-import pathlib,struct,subprocess,tempfile
+import argparse,pathlib,struct,subprocess,tempfile
+p=argparse.ArgumentParser()
+p.add_argument("--mavlink-export",type=pathlib.Path,required=True)
+args=p.parse_args()
 root=pathlib.Path(__file__).resolve().parents[1]
 with tempfile.TemporaryDirectory() as directory:
     exe=pathlib.Path(directory)/'checksum'
-    subprocess.run(['g++','-std=c++11','-fsanitize=undefined','-fno-sanitize-recover=all','-Werror=address-of-packed-member','-Werror=ignored-qualifiers','-I',str(root),str(root/'tests/mavlink_checksum.cpp'),'-o',str(exe)],check=True)
+    subprocess.run(['g++','-std=c++11','-fsanitize=undefined','-fno-sanitize-recover=all','-Werror=address-of-packed-member','-Werror=ignored-qualifiers','-I',str(args.mavlink_export/'include'),'-I',str(root),str(root/'tests/mavlink_checksum.cpp'),'-o',str(exe)],check=True)
     wire=bytes.fromhex(subprocess.check_output([str(exe)],text=True).strip())
 payload=struct.pack('<IBBBBB',0,2,3,0,4,3)
 body=bytes([9,0,1,1,0])+payload

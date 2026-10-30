@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "generator_version": "2.4.50",
+  "wire_protocol": "1.0",
+  "archive_sha256": "8d65a8b05b2971babeef4b6ca74a247a72276f62f7559466c64e96ece7f10062",
+  "product_files": {
+    "recipes-mavlink/mavlink/files/solo-dialect/solo.xml": "c175e757eaa37f974cc484f031bc91325788f8fb48a26fe2f883da6d387dbf8b",
+    "recipes-mavlink/mavlink/files/solo-dialect/solo_common.xml": "bd72b5d2d5d54ba9f9c61ae112c7af6ffbf6df9debe4f9ee6b8f1dcef700c9d5",
+    "recipes-mavlink/mavlink/files/0001-opensolo-modern-runtime-contract.patch": "4663e70eb329c5c10eba5eabcee2444db890049aa6fbedec424bde9a2b67f7d9"
+  },
+  "product_authority": {
+    "repository": "https://github.com/Decryptortuning/meta-3dr.git",
+    "observed_revision": "b3c86990a92295de81f747dc3db2fdc431ac0efa",
+    "note": "Content hashes select the contract; unrelated later product commits may differ."
+  },
+  "archive_url": "https://files.pythonhosted.org/packages/3c/4e/212af84fdb81b62e934faf1ae579cc5ffbb32d2756e9c7c63feff9a62877/pymavlink-2.4.50.tar.gz"
+}

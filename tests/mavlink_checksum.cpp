@@ -1,6 +1,6 @@
 #include <cstdio>
 #include <new>
-#include "src/mavlink/c_library/common/mavlink.h"
+#include <opensolo/mavlink/solo/mavlink.h>
 int main() {
     alignas(8) unsigned char storage[sizeof(mavlink_message_t)+1];
     auto *msg = new (storage+1) mavlink_message_t{};
