@@ -10,7 +10,7 @@
 static volatile WatchdogPolicy::Retained retained __attribute__((section(".noinit")));
 static volatile uint32_t adcEpoch;
 static WatchdogPolicy::Progress progress;
-static bool allowed,started,recoverRunning;
+static bool allowed,started,recoverRunning,flashCredit;
 static unsigned stable;
 #ifdef ARTOO_HOST_TEST
 namespace WatchdogTest {
@@ -36,13 +36,23 @@ static void persist(uint32_t streak,uint32_t running)
 void Watchdog::boot()
 {
     const WatchdogPolicy::Retained old={retained.magic,retained.streak,retained.running,retained.check};
-    adcEpoch=0; progress={0,0}; allowed=false; started=false; stable=0;
+    adcEpoch=0; progress={0,0}; allowed=false; started=false; stable=0; flashCredit=false;
     const uint32_t csr=Rcc::csr();
     const auto next=WatchdogPolicy::boot(old,csr&(Rcc::CSR_IWDG_RSTF|Rcc::CSR_WWDG_RSTF),csr&Rcc::CSR_POR_RSTF);
     persist(next.streak,next.running);
     recoverRunning=next.running!=0;
 }
 uint32_t Watchdog::status() { return 1u | (started ? 2u:0u) | (retained.streak>=2 ? 4u:0u) | (retained.streak<<8); }
+bool Watchdog::beginFlash()
+{
+    if (!started) return true;
+    if (!flashCredit) return false;
+    flashCredit=false;
+    // Exactly one bounded journal transaction may borrow this healthy epoch.
+    // Refresh while flash is idle, then each SRAM interval refreshes before BSY.
+    writeIwdg(0,0xaaaa);
+    return true;
+}
 bool Watchdog::resumeRunning() { return recoverRunning; }
 void Watchdog::state(bool running) { persist(retained.streak,running); }
 void Watchdog::allowStart() { allowed=true; }
@@ -69,6 +79,7 @@ void Watchdog::foreground(bool heartbeat,bool uartPending)
         writeIwdg(0,0xaaaa); writeIwdg(0,0xcccc); started=true;
     }
     if (started) {
+        flashCredit=true;
         writeIwdg(0,0xaaaa);
         // One minute of successful50Hz foreground/ADC progress clears streak.
         if (stable<3000 && ++stable==3000) persist(0,retained.running);

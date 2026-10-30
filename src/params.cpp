@@ -1,6 +1,7 @@
 #include "params.h"
 #include "paramstore.h"
 #include "paramjournal.h"
+#include "watchdog.h"
 #include "flightmanager.h"
 
 #include <string.h>
@@ -49,6 +50,7 @@ bool Params::save()
         snapshot = storedValues;
         savedGeneration = pending.generation;
     }
+    if (!Watchdog::beginFlash()) return false;
     if (!ParamJournal::save<McuFlash>(&snapshot)) return false;
     {
         InterruptGuard guard;

@@ -57,6 +57,10 @@ extern "C" RAM_CODE bool artoo_flash_operation(uint32_t address,uint16_t value,b
     uint32_t oldVtor=*vtor;
     *vtor=reinterpret_cast<uint32_t>(flashVectors);
     asm volatile("dsb\n\tisb" ::: "memory");
+    // The caller admits one bounded journal transaction per healthy epoch.
+    // Reload before any BSY interval: an old nearly-expired IWDG must not reset
+    // an in-flight erase. This key does not start a software-disabled watchdog.
+    *reinterpret_cast<volatile uint32_t*>(0x40003000u)=0xaaaau;
     // Iteration bounds independent of stopped SysTick. Generous at72MHz;
     // electrical latency/LSI/UART loss require later hardware measurement.
     unsigned budget=1u<<24;

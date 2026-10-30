@@ -7,6 +7,7 @@
 class Watchdog {
 public:
 #if ARTOO_EXPERIMENTAL_IWDG
+    static bool beginFlash();
     static uint32_t status();
     static void boot();
     static bool resumeRunning();
@@ -15,6 +16,7 @@ public:
     static void foreground(bool heartbeat,bool uartPending);
     static void state(bool running);
 #else
+    static bool beginFlash() { return true; }
     static uint32_t status() { return 0; }
     static void boot() {}
     static bool resumeRunning() { return false; }

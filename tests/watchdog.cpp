@@ -36,6 +36,10 @@ int main() {
     assert(WatchdogTest::writes[2].second==4095 && WatchdogTest::writes[4].second==0xcccc);
     WatchdogTest::writes.clear();Watchdog::foreground(true,false);assert(WatchdogTest::writes.empty());
     progress(1);assert(WatchdogTest::writes.size()==1 && WatchdogTest::writes[0].second==0xaaaa);
+    assert(Watchdog::beginFlash());
+    WatchdogTest::writes.clear();assert(!Watchdog::beginFlash());
+    Watchdog::foreground(true,false);assert(!Watchdog::beginFlash());assert(WatchdogTest::writes.empty());
+    progress(1);assert(Watchdog::beginFlash());assert(!Watchdog::beginFlash());
     Watchdog::state(true);boot(Rcc::CSR_PIN_RSTF|Rcc::CSR_IWDG_RSTF);
     assert(!Rcc::pinReset() && Watchdog::resumeRunning());Watchdog::allowStart();progress(150);assert(!WatchdogTest::writes.empty());
     boot(Rcc::CSR_IWDG_RSTF);assert(Watchdog::resumeRunning());Watchdog::allowStart();progress(4000);assert(WatchdogTest::writes.empty());assert(Watchdog::status()==0x205);
