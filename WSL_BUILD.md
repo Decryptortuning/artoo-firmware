@@ -13,11 +13,13 @@ python3 -m venv .venv
 ./scripts/build-wsl.sh
 ```
 
-The wrapper generates and executes Tup's standalone build script. It cleans only
-known ignored outputs before regenerating, retains compiler diagnostics as errors,
-and runs a host UBSan/MAVLink wire-CRC regression on deliberately unaligned storage.
-Outputs are artoo.elf, artoo.map, artoo.hex and artoo.bin. `VERSION` plus the source
-commit identifies development builds; these are not upstream releases.
+The current migration wrapper configures an isolated CMake/Ninja profile, retaining
+compiler diagnostics as errors. Outputs are artoo.elf, artoo.map, artoo.hex and
+artoo.bin under `build/PROFILE-BOARD`. Native regression suites are separate
+qualification commands. The previous Tup wrapper is preserved as
+`scripts/build-tup-reference.sh` until parity is accepted; see the migration
+section below. `VERSION` plus the source commit identifies development builds;
+these are not upstream releases.
 
 Pillow font geometry preserves the former top-bearing-inclusive height. Modern
 GCC fixes use aligned checksum temporaries and annotate intentional LCD decoder
@@ -49,7 +51,7 @@ wire message or persistent setting. Return to a normal production image to
 restore the default countdown on subsequent boots.
 
 Bench images have the distinct `-bench-noidle` version suffix. Every wrapper
-build emits ignored `build-manifest.json` with the exact embedded version,
+build emits ignored `build/PROFILE-BOARD/build-manifest.json` with the exact embedded version,
 profile, board, source/config identity and artifact hashes. Copy this manifest
 with immutable qualified artifacts and use its `version` for updater verification;
 do not reconstruct a version from the checkout's current hash. The optional
