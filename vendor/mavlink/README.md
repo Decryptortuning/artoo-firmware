@@ -27,3 +27,19 @@ product patch to retain generator date determinism; only C1 generation runs.
 No MAVLink2 wire, message numbering, command retry or vehicle capability changes
 are part of this update. Byte-level CRC and consumer/UART regression checks are
 still required in addition to static field assertions.
+
+The retained library differs in two unused remote-logging messages: old141/142
+become the existing Linux Solo184/185, with reviewed field and CRC differences;
+MAV_COMP_ID_LOG changes50 to155 and four remote-log enums are added. Runtime
+Artoo sources have no REMOTE_LOG/MAV_COMP_ID_LOG consumer. The checker asserts
+exact old definitions from tests/legacy_mavlink_differences.json and the full
+new166-message contract, plus absence of those identifiers in runtime sources.
+It constructs166 independent golden frames and CRCs, checks actual parser/
+reserializer byte equality and damaged-CRC recovery under UBSan.
+
+The owned0001-c1-aligned-checksum.patch repairs upstream C1 helpers to accumulate
+through an aligned local uint16_t instead of taking a packed-member address.
+It is applied only to temporary extracted generator input, is hash-pinned in
+contract.json, and does not edit the product patch or vendor source checkout.
+The deliberate unaligned heartbeat/start/update and finalize-buffer tests retain
+packed-member warnings as errors. No warning suppression is used.

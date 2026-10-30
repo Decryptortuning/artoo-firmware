@@ -9,6 +9,10 @@ int main() {
     unsigned count=mavlink_msg_to_send_buffer(wire,msg);
     for(unsigned i=0;i<count;++i) std::printf("%02x",wire[i]);
     std::puts("");
+    const uint16_t expected = msg->checksum;
+    mavlink_status_t status = {};
+    mavlink_finalize_message_buffer(msg, 1, 1, &status, 9, 9, 50);
+    if (msg->checksum != expected) return 2;
     mavlink_start_checksum(msg);
     const char *vector="123456789";
     for(const char *p=vector;*p;++p) mavlink_update_checksum(msg,*p);

@@ -31,6 +31,9 @@ def main():
     for rel,digest in contract['product_files'].items():
         if sha(args.product_root/rel)!=digest:
             raise SystemExit('Product contract input changed: '+rel)
+    for rel,digest in contract['owned_patches'].items():
+        if sha(ROOT/rel)!=digest:
+            raise SystemExit('Owned generator patch changed: '+rel)
     os.environ['SOURCE_DATE_EPOCH']=str(args.epoch)
     with tempfile.TemporaryDirectory(prefix='artoo-mavlink-') as tmp:
         stage=Path(tmp)
@@ -41,6 +44,8 @@ def main():
         source=stage/('pymavlink-'+contract['generator_version'])
         patch=next(args.product_root/p for p in contract['product_files'] if p.endswith('.patch'))
         subprocess.run(['patch','--batch','--forward','-p1','-i',str(patch.resolve())],cwd=source,check=True)
+        for rel in contract['owned_patches']:
+            subprocess.run(['patch','--batch','--forward','-p1','-i',str(ROOT/rel)],cwd=source,check=True)
         spec=importlib.util.spec_from_file_location('pymavlink',source/'__init__.py',submodule_search_locations=[str(source)])
         package=importlib.util.module_from_spec(spec)
         sys.modules['pymavlink']=package

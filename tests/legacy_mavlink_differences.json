@@ -1,0 +1,9 @@
+{
+  "reason": "Retained 2015 MCU remote logging definitions are unused by runtime code. The named Solo export intentionally adopts the existing Linux protocol; these are exact old expectations, not ignored assertions.",
+  "messages": {
+    "REMOTE_LOG_DATA_BLOCK": {"id": 141, "length": 207, "crc_extra": 34, "c_layout": {"block_cnt": {"offset": 0, "size": 4}, "target_system": {"offset": 4, "size": 1}, "target_component": {"offset": 5, "size": 1}, "block_size": {"offset": 6, "size": 1}, "data": {"offset": 7, "size": 200}}},
+    "REMOTE_LOG_BLOCK_STATUS": {"id": 142, "length": 7, "crc_extra": 0, "c_layout": {"block_cnt": {"offset": 0, "size": 4}, "target_system": {"offset": 4, "size": 1}, "target_component": {"offset": 5, "size": 1}, "block_status": {"offset": 6, "size": 1}}}
+  },
+  "enum_values": {"MAV_COMP_ID_LOG": 50},
+  "absent_enums": ["MAV_REMOTE_LOG_DATA_BLOCK_ACK", "MAV_REMOTE_LOG_DATA_BLOCK_NACK", "MAV_REMOTE_LOG_DATA_BLOCK_START", "MAV_REMOTE_LOG_DATA_BLOCK_STOP"]
+}
