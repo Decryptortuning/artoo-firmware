@@ -24,7 +24,8 @@ public:
         stats(),
         rxResetPending(false),
         firstMsgRxed(false),
-        hostRequest(Nop)
+        hostRequest(Nop), diagnosticsPending(false), diagnosticsSeen(false),
+        diagnosticsToken(0), diagnosticsLast(0)
     {}
 
 
@@ -89,6 +90,10 @@ private:
     bool firstMsgRxed;
 
     MsgID hostRequest;
+    bool diagnosticsPending, diagnosticsSeen;
+    uint16_t diagnosticsToken;
+    uint64_t diagnosticsLast;
+    bool produceDiagnostics(Packet &p);
 };
 
 #endif // HOSTPROTOCOL_H

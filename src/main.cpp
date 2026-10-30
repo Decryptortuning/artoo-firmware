@@ -23,12 +23,14 @@
 #include "battery.h"
 #include "powermanager.h"
 #include "board.h"
+#include "diagnostics.h"
 
 int main()
 {
     // enable power manager first, to ensure we stay turned on
     PowerManager::init();
     Rcc::latchAndClearResetFlags();
+    Diagnostics::init();
 
     Pwr::init();
     Pwr::enableVoltageDetector(Pwr::PVD_2_4V);

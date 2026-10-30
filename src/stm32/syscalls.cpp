@@ -1,5 +1,6 @@
 #include "irqguard.h"
 #include "../heapbounds.h"
+#include "../diagnostics.h"
 #include <errno.h>
 
 extern unsigned char __heap_start, __heap_end;
@@ -13,10 +14,12 @@ extern "C" void *_sbrk(ptrdiff_t increment)
     uintptr_t next = reinterpret_cast<uintptr_t>(position);
     if (!HeapBounds::advance(reinterpret_cast<uintptr_t>(&__heap_start),
                              reinterpret_cast<uintptr_t>(&__heap_end), next, increment)) {
+        Diagnostics::heap(next, true);
         errno = ENOMEM;
         return reinterpret_cast<void*>(-1);
     }
     void *previous = position;
     position = reinterpret_cast<unsigned char*>(next);
+    Diagnostics::heap(next, false);
     return previous;
 }

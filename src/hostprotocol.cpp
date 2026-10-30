@@ -1,5 +1,6 @@
 #include "cameracontrol.h"
 #include "hostprotocol.h"
+#include "diagnostics.h"
 #include "inputs.h"
 #include "params.h"
 #include "tasks.h"
@@ -142,7 +143,27 @@ bool HostProtocol::dispatchProduce()
     }
 #endif
 
-    return false;
+    return produceDiagnostics(txPacket);
+}
+
+bool HostProtocol::produceDiagnostics(Packet &p)
+{
+    if (!diagnosticsPending) return false;
+    uint32_t counters[9];
+    {
+        InterruptGuard guard;
+        counters[0] = stats.txBytes; counters[1] = stats.rxBytes;
+        counters[2] = stats.malformedBytes; counters[3] = stats.overruns;
+        counters[4] = stats.dropped; counters[5] = stats.lineErrors;
+        counters[6] = stats.rejectedFrames; counters[7] = stats.txRejected;
+        counters[8] = stats.txErrors;
+    }
+    uint8_t payload[::Diagnostics::ReplyBytes];
+    ::Diagnostics::snapshot(payload, diagnosticsToken, counters);
+    static_assert(1 + ::Diagnostics::ReplyBytes <= RawCapacity, "diagnostics envelope");
+    diagnosticsPending = false;
+    return p.delimitSlip() && p.appendSlip(HostMessage::Diagnostics) &&
+        p.appendSlip(payload, sizeof payload) && p.delimitSlip();
 }
 
 bool HostProtocol::produceHostProtocolPacket(Packet &p)
@@ -255,6 +276,17 @@ void HostProtocol::processPacket(const RxPacket &p)
     static_assert(sizeof(Params::StoredValues) == 172, "persistent/host parameter layout");
     if (p.isEmpty() || !p.ok() || !requestEnabled(p.data()[0]) || !payloadValid(p.data()[0], p.data() + 1, p.payloadLen())) {
         ++stats.rejectedFrames;
+        return;
+    }
+    if (p.data()[0] == HostMessage::Diagnostics) {
+        const uint64_t now = SysTime::now();
+        if (!diagnosticsPending && (!diagnosticsSeen || now - diagnosticsLast >= SysTime::sTicks(1))) {
+            diagnosticsToken = p.data()[2] | (static_cast<uint16_t>(p.data()[3]) << 8);
+            diagnosticsLast = now;
+            diagnosticsSeen = true;
+            diagnosticsPending = true;
+            requestTransaction();
+        }
         return;
     }
     firstMsgRxed = true;

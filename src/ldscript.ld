@@ -94,6 +94,16 @@ SECTIONS
         __bss_end = .;
     } >RAM
 
+    .noinit (NOLOAD) : {
+        . = ALIGN(8);
+        __noinit_start = .;
+        KEEP(*(.noinit));
+        . = ALIGN(8);
+        KEEP(*(.noinit.faultstack));
+        __fault_stack_end = .;
+        __noinit_end = .;
+    } >RAM
+
     .ARM.attributes 0 : { *(.ARM.attributes) }
 
     /*
@@ -107,8 +117,8 @@ SECTIONS
 }
 
 /* 'end' needed to support semihosting */
-end = __bss_end;
-__heap_start = __bss_end;
+end = __noinit_end;
+__heap_start = __noinit_end;
 /* Minimum reserved stack capacity, not a measured worst-case stack claim. */
 __stack_reserve = 4096;
 __heap_end = _stack - __stack_reserve;

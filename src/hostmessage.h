@@ -38,6 +38,7 @@ struct HostMessage {
         SetTelemUnits,      // set telemetry units to metric/imperial
         InvalidStickInputs, // out of range stick values received
         SoloAppConnection,  // solo app connection status (connected/disconnected)
+        Diagnostics,        // schema1 + uint16 token; fixed read-only diagnostics response
     };
 
     static const unsigned CalibrationBytes = 36;
@@ -63,6 +64,7 @@ struct HostMessage {
 
     static bool payloadLengthValid(unsigned id, unsigned length) {
         switch (id) {
+        case Diagnostics: return length == 3;
         case Nop: case ParamStoredVals: return length == 0;
         case SysInfo: return length <= 1;
         case SetRawIo: case Updater: case LockoutState: case TestEvent:
@@ -85,6 +87,7 @@ struct HostMessage {
         if (!payloadLengthValid(id, length)) return false;
         // Direct updater queries contain only ID3. The running Linux service's
         // SysInfo::ping() sends one literal space through PacketHandler.
+        if (id == Diagnostics) return bytes[0] == 1;
         return id != SysInfo || length == 0 || bytes[0] == ' ';
     }
 

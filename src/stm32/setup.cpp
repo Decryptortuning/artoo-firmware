@@ -5,6 +5,7 @@
 
 #include "hw.h"
 #include "gpio.h"
+#include "../diagnostics.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -40,6 +41,9 @@ extern "C" void initialise_monitor_handles(void);
 
 extern "C" void _start()
 {
+    // These retained words cannot depend on BSS initialization or constructors.
+    artoo_fault_active = 0;
+    artoo_current_task = 0xffffffffu;
     /*
      * Set up clocks:
      *   - 12 MHz HSE (xtal) osc

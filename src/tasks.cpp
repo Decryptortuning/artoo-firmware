@@ -1,4 +1,5 @@
 #include "tasks.h"
+#include "diagnostics.h"
 #include "params.h"
 #include "cameracontrol.h"
 #include "hostprotocol.h"
@@ -30,6 +31,7 @@ void Tasks::invoke(unsigned id)
         break;
 
     case FiftyHzHeartbeat:
+        Diagnostics::heartbeatServed();
         ButtonManager::task();
         Battery::instance.task();
         Inputs::fiftyHzWork();
@@ -91,6 +93,7 @@ void Tasks::heartbeat()
      * Called periodically by the systick ISR at HEARTBEAT_HZ.
      */
 
+    Diagnostics::heartbeatPosted();
     trigger(FiftyHzHeartbeat);
 }
 
@@ -104,6 +107,7 @@ bool Tasks::work()
      * calling Tasks::work from within a handler. Could change if necessary.
      */
 
+    Diagnostics::loop();
     // Quickest possible early-exit
     uint32_t tasks = __atomic_exchange_n(&pendingMask, 0, __ATOMIC_ACQ_REL);
     if (!tasks) {
@@ -112,7 +116,9 @@ bool Tasks::work()
 
     do {
         unsigned idx = Intrinsic::CLZ(tasks);
+        Diagnostics::taskBegin(idx);
         invoke(idx);
+        Diagnostics::taskEnd(idx);
         tasks &= ~Intrinsic::LZ(idx);
     } while (tasks);
 

@@ -3,27 +3,37 @@
 
 extern unsigned _stack;
 
-#define HANDLER_LOG(name)                                  \
-    IRQ_HANDLER name() {                                   \
-        /* Debug::log("Unexpected IRQ (" #name ")"); */    \
+// No C prologue touches the potentially damaged exception stack. Reentry halts
+// before using the emergency stack again. Ordinary IRQs now capture, too.
+#define FAULT_HANDLER(name) \
+    NAKED_HANDLER name() { \
+        __asm__ volatile( \
+            "cpsid i\n" \
+            "tst lr, #4\n" \
+            "ite eq\n" \
+            "mrseq r0, msp\n" \
+            "mrsne r0, psp\n" \
+            "mov r1, lr\n" \
+            "mrs r2, ipsr\n" \
+            "ldr r3, =artoo_fault_active\n" \
+            "ldr r12, [r3]\n" \
+            "cmp r12, #0\n" \
+            "bne 1f\n" \
+            "movs r4, #1\n" \
+            "str r4, [r3]\n" \
+            "ldr r3, =__fault_stack_end\n" \
+            "msr msp, r3\n" \
+            "b artoo_capture_fault\n" \
+            "1: b 1b\n"); \
     }
-
-// XXX: Do something less bad on non-debug builds
-#define HANDLER_LOG_HALT(name)                              \
-    IRQ_HANDLER name() {                                    \
-        /* Debug::log("Unexpected IRQ (" #name "), halting"); */ \
-        while (1);                                          \
-    }
-
-HANDLER_LOG(ISR_Default)
-
-HANDLER_LOG_HALT(ISR_DefaultNMI)
-HANDLER_LOG_HALT(ISR_DefaultHardFault)
-HANDLER_LOG_HALT(ISR_DefaultMemManage)
-HANDLER_LOG_HALT(ISR_DefaultBusFault)
-HANDLER_LOG_HALT(ISR_DefaultUsageFault)
-HANDLER_LOG_HALT(ISR_DefaultSVCall)
-HANDLER_LOG_HALT(ISR_DefaultDebug)
+FAULT_HANDLER(ISR_Default)
+FAULT_HANDLER(ISR_DefaultNMI)
+FAULT_HANDLER(ISR_DefaultHardFault)
+FAULT_HANDLER(ISR_DefaultMemManage)
+FAULT_HANDLER(ISR_DefaultBusFault)
+FAULT_HANDLER(ISR_DefaultUsageFault)
+FAULT_HANDLER(ISR_DefaultSVCall)
+FAULT_HANDLER(ISR_DefaultDebug)
 
 #pragma weak ISR_NMI                = ISR_DefaultNMI
 #pragma weak ISR_HardFault          = ISR_DefaultHardFault

@@ -23,7 +23,11 @@ vectors = struct.unpack_from('<76I',binary)
 assert vectors[0] == top and vectors[1] == (symbols['_start'] | 1)
 assert all(value == 0 or (value & 1 and base <= value < base+len(binary)) for value in vectors[1:])
 assert base+len(binary) == symbols['__data_src']+symbols['__data_end']-symbols['__data_start'] <= limit
-assert symbols['__heap_start'] == symbols['__bss_end'] <= symbols['__heap_end']
+assert symbols['__bss_end'] <= symbols['__noinit_start'] < symbols['__noinit_end'] == symbols['__heap_start'] <= symbols['__heap_end']
+assert symbols['__noinit_start'] <= symbols['artoo_fault_record'] < symbols['__noinit_end']
+assert symbols['__fault_stack_end'] - symbols['artoo_fault_stack'] == 512
+assert symbols['__fault_stack_end'] % 8 == 0
+assert symbols['__fault_stack_end'] <= symbols['__noinit_end']
 assert symbols['__heap_end'] == top-4096 and symbols['_stack'] == top
 constructors = []
 for group in ('preinit','init'):
@@ -41,7 +45,7 @@ assert ' _sbrk' in names
 assert 'tamp_compressor_' not in names, 'host compressor linked into firmware'
 assert not re.search(r'__atomic_\w+_[1248]',names), 'unexpected out-of-line atomic runtime'
 frames = []
-for path in args.stack_dir.glob('*.su'):
+for path in args.stack_dir.rglob('*.su'):
     for line in path.read_text().splitlines():
         fields = line.split('\t')
         if len(fields) == 3:
@@ -51,7 +55,7 @@ frames.sort(key=lambda row:row['bytes'],reverse=True)
 assert frames[0]['bytes'] < 4096, 'one frame exhausts minimum stack reserve'
 print(json.dumps({'binary_sha256':hashlib.sha256(binary).hexdigest(),
     'binary_bytes':len(binary),'flash_gap':limit-base-len(binary),
-    'static_ram_bytes':symbols['__bss_end']-ram,'heap_capacity':symbols['__heap_end']-symbols['__heap_start'],
+    'static_ram_bytes':symbols['__noinit_end']-ram,'retained_ram_bytes':symbols['__noinit_end']-symbols['__noinit_start'],'heap_capacity':symbols['__heap_end']-symbols['__heap_start'],
     'minimum_stack_reserve':4096,'constructors':constructors,'factory_profile':args.factory,
     'stack_functions_reported':len(frames),'largest_static_frames':frames[:20],
     'stack_limitations':'All compiled functions, including linker-discarded ones; per-function compiler evidence only; no complete call-chain, ISR nesting, dynamic stack or physical high-water qualification.'},indent=2))
